@@ -1,16 +1,12 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import { cn } from "@/lib/utils";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { fontVariables } from "@/lib/fonts";
+import { DeleteDialogProvider } from "@/components/providers/delete-dialog-provider";
+import { ThemeProvider } from "next-themes";
+import { QueryProvider } from "@/components/providers/query-provider";
+import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -25,9 +21,26 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={cn("h-full", "antialiased", fontVariables)}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <QueryProvider>
+          <TooltipProvider>
+            <DeleteDialogProvider>
+              <ThemeProvider
+                attribute="class"
+                defaultTheme="system"
+                enableSystem
+                disableTransitionOnChange
+              >
+                {children}
+                <Toaster richColors />
+              </ThemeProvider>
+            </DeleteDialogProvider>
+          </TooltipProvider>
+        </QueryProvider>
+      </body>
     </html>
   );
 }

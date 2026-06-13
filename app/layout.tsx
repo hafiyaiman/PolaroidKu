@@ -7,6 +7,7 @@ import { DeleteDialogProvider } from "@/components/providers/delete-dialog-provi
 import { ThemeProvider } from "next-themes";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -25,22 +26,25 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
-        <QueryProvider>
-          <TooltipProvider>
-            <DeleteDialogProvider>
-              <ThemeProvider
-                attribute="class"
-                defaultTheme="system"
-                enableSystem
-                disableTransitionOnChange
-              >
-                {children}
-                <Toaster richColors />
-              </ThemeProvider>
-            </DeleteDialogProvider>
-          </TooltipProvider>
-        </QueryProvider>
+        <NuqsAdapter>
+          <QueryProvider>
+            <TooltipProvider>
+              <DeleteDialogProvider>
+                <ThemeProvider
+                  attribute="class"
+                  defaultTheme="system"
+                  enableSystem
+                  disableTransitionOnChange
+                >
+                  {children}
+                  <Toaster richColors />
+                </ThemeProvider>
+              </DeleteDialogProvider>
+            </TooltipProvider>
+          </QueryProvider>
+        </NuqsAdapter>
       </body>
     </html>
   );
 }
+

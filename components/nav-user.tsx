@@ -24,7 +24,10 @@ import {
   BellIcon,
   SignOutIcon,
 } from "@phosphor-icons/react";
-
+import { useRouter } from "next/navigation";
+import { useMutation } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { signOutAction } from "@/app/(auth)/actions/auth-actions";
 export function NavUser({
   user,
 }: {
@@ -35,6 +38,19 @@ export function NavUser({
   };
 }) {
   const { isMobile } = useSidebar();
+  const router = useRouter();
+
+  const logoutMutation = useMutation({
+    mutationFn: signOutAction,
+    onSuccess: () => {
+      toast.success("Logged out successfully.");
+      router.push("/login");
+      router.refresh();
+    },
+    onError: (err: any) => {
+      toast.error(err.message);
+    },
+  });
 
   return (
     <SidebarMenu>
@@ -97,9 +113,12 @@ export function NavUser({
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => logoutMutation.mutate()}
+              disabled={logoutMutation.isPending}
+            >
               <SignOutIcon />
-              Log out
+              {logoutMutation.isPending ? "Logging out..." : "Log out"}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

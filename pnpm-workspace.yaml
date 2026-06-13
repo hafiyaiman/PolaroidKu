@@ -1,11 +1,16 @@
 allowBuilds:
   core-js: set this to true or false
+  esbuild: set this to true or false
   sharp: set this to true or false
   unrs-resolver: set this to true or false
 
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
+
+minimumReleaseAgeExclude:
+  - '@aws-sdk/client-s3@3.1068.0'
+  - '@aws-sdk/s3-request-presigner@3.1068.0'
 
 onlyBuiltDependencies:
   - core-js

@@ -11,9 +11,9 @@ function PolaroidCard({
 }) {
   return (
     <div
-      className={`absolute w-28 rounded-sm bg-white p-2 shadow-2xl ${className}`}
+      className={`absolute w-28 bg-white p-2 shadow-2xl ${className}`}
     >
-      <div className={`aspect-square w-full rounded-sm ${colorClass}`} />
+      <div className={`aspect-square w-full ${colorClass}`} />
       <div className="mt-2 h-1 w-2/3 rounded-full bg-slate-200" />
     </div>
   );

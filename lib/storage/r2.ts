@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const BUCKET_NAME = process.env.R2_BUCKET_NAME || "polaroidku";
@@ -13,6 +13,41 @@ export const r2Client = new S3Client({
   },
   requestChecksumCalculation: "WHEN_REQUIRED",
 });
+
+/**
+ * Calculates the total size of all objects under a prefix.
+ * Used to check actual storage consumed by a user.
+ */
+export async function getUserStorageSize(userId: string): Promise<number> {
+  let totalSize = 0;
+  let isTruncated = true;
+  let continuationToken: string | undefined = undefined;
+
+  try {
+    while (isTruncated) {
+      const response: any = await r2Client.send(
+        new ListObjectsV2Command({
+          Bucket: BUCKET_NAME,
+          Prefix: `users/${userId}/`,
+          ContinuationToken: continuationToken,
+        })
+      );
+      
+      if (response.Contents) {
+        for (const item of response.Contents) {
+          totalSize += item.Size || 0;
+        }
+      }
+
+      isTruncated = response.IsTruncated ?? false;
+      continuationToken = response.NextContinuationToken;
+    }
+  } catch (error) {
+    console.error(`Failed to calculate storage size for user ${userId}:`, error);
+  }
+
+  return totalSize;
+}
 
 /**
  * Generates a secure, temporary PUT URL so guests can upload directly to R2.
@@ -54,4 +89,5 @@ export async function getPresignedDownloadUrl(key: string) {
   const downloadUrl = await getSignedUrl(r2Client, command, { expiresIn: 3600 });
   return downloadUrl;
 }
+
 

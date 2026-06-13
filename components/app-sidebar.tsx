@@ -39,6 +39,17 @@ import {
   CaretRightIcon
 } from "@phosphor-icons/react"
 
+interface SidebarMenuItemType {
+  title: string;
+  url: string;
+  icon: React.ReactNode;
+  isActive: boolean;
+  items?: {
+    title: string;
+    url: string;
+  }[];
+}
+
 interface SidebarUser {
   id: string;
   email: string;
@@ -61,7 +72,7 @@ export function AppSidebar({
     setIsAdmin(roleIsAdmin)
   }, [user])
 
-  const userMenu = [
+  const userMenu: SidebarMenuItemType[] = [
     {
       title: "Dashboard",
       url: "/dashboard",
@@ -73,16 +84,6 @@ export function AppSidebar({
       url: "/dashboard/events",
       icon: <CalendarIcon className="size-4" />,
       isActive: pathname.startsWith("/dashboard/events"),
-      items: [
-        {
-          title: "All Events",
-          url: "/dashboard/events",
-        },
-        {
-          title: "Create Event",
-          url: "/dashboard/events/new",
-        },
-      ],
     },
     {
       title: "Billing",

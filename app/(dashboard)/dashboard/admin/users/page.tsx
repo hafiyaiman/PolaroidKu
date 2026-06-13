@@ -1,14 +1,42 @@
 import { Badge } from "@/components/ui/badge";
 import { ShieldCheckIcon } from "@phosphor-icons/react/dist/ssr";
-import { getAllUsersForAdmin } from "@/app/actions/event-actions";
+import { getAllUsersForAdmin } from "../_actions/admin-actions";
 import { redirect } from "next/navigation";
 import { UsersTable } from "./_components/users-table";
+
+import { Button } from "@/components/ui/button";
+import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { LockKeyIcon } from "@phosphor-icons/react/dist/ssr";
+import Link from "next/link";
 
 export default async function Page() {
   const result = await getAllUsersForAdmin();
 
   if ("error" in result) {
-    redirect("/dashboard");
+    return (
+      <div className="flex flex-1 items-center justify-center p-6 bg-background/30">
+        <Card className="max-w-md w-full border-border/40 bg-card/60 text-center shadow-lg">
+          <CardHeader className="flex flex-col items-center gap-2 pt-6">
+            <div className="size-12 rounded-full bg-destructive/15 flex items-center justify-center text-destructive">
+              <LockKeyIcon className="size-6" />
+            </div>
+            <CardTitle className="text-lg font-bold text-foreground mt-2">
+              Super Admin Access Required
+            </CardTitle>
+            <CardDescription className="text-xs text-muted-foreground px-2">
+              You do not have the required permissions to view the user management directory. Access is restricted to Super Administrators only.
+            </CardDescription>
+          </CardHeader>
+          <CardFooter className="flex justify-center pb-6">
+            <Link href="/dashboard" passHref legacyBehavior>
+              <Button className="cursor-pointer text-xs">
+                Return to Dashboard
+              </Button>
+            </Link>
+          </CardFooter>
+        </Card>
+      </div>
+    );
   }
 
   const dbUsers = result.users || [];

@@ -50,7 +50,7 @@ export default async function Page() {
 
       <div className="flex flex-1 flex-col gap-6 p-4 md:p-6 bg-background/30 overflow-y-auto">
         {/* Welcome Section */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6 rounded-2xl border border-primary/15">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6 border border-primary/15">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground">Welcome Back!</h1>
             <p className="text-sm text-muted-foreground mt-1">

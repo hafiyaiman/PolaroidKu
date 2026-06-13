@@ -25,6 +25,7 @@ import {
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTableToolbar } from "@/components/data-table/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
+import { useAdminUsers } from "../../_hooks/use-admin";
 
 interface User {
   id: string;
@@ -33,13 +34,16 @@ interface User {
   role: string;
   eventsCount: number;
   bucketSize: string;
+  r2ConsoleUrl?: string;
 }
 
 interface UsersTableProps {
   users: User[];
 }
 
-export function UsersTable({ users }: UsersTableProps) {
+export function UsersTable({ users: initialUsers }: UsersTableProps) {
+  const { data: users = initialUsers } = useAdminUsers(initialUsers);
+
   const [sorting, setSorting] = React.useState<SortingState>([
     { id: "email", desc: false },
   ]);
@@ -154,12 +158,18 @@ export function UsersTable({ users }: UsersTableProps) {
         ),
         cell: ({ row }) => {
           const hasEvents = row.original.eventsCount > 0;
-          if (hasEvents) {
+          const r2Url = row.original.r2ConsoleUrl;
+          if (hasEvents && r2Url) {
             return (
-              <span className="flex items-center gap-1 text-[11px] text-indigo-400 font-mono">
+              <a
+                href={r2Url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 hover:underline font-mono"
+              >
                 <LockKeyIcon className="size-3.5" />
                 {`users/${row.original.id}/`}
-              </span>
+              </a>
             );
           }
           return (

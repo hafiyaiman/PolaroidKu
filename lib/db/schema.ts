@@ -1,4 +1,4 @@
-import { pgSchema, pgTable, text, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgSchema, pgTable, text, timestamp, integer, boolean } from "drizzle-orm/pg-core";
 
 // Define the existing neon_auth schema managed by Neon Auth
 export const neonAuthSchema = pgSchema("neon_auth");
@@ -15,8 +15,8 @@ export const users = neonAuthSchema.table("user", {
 
 /**
  * Plans:
- *   free     — 50 photos, 30-day retention
- *   premium  — 1,000 photos, 90-day retention (RM29)
+ *   free     — 20 photos, 30-day retention
+ *   premium  — 1,000 photos, 60-day retention (RM29)
  *   pro      — 3,000 photos, 180-day retention (RM59)
  */
 export const events = pgTable("events", {
@@ -33,7 +33,10 @@ export const events = pgTable("events", {
   retentionDays: integer("retention_days").notNull().default(30),
   expiresAt: timestamp("expires_at", { withTimezone: true }),  // set on creation; cron deletes after
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  // Payment tracking
+  pendingPurchaseId: text("pending_purchase_id"), // CHIP purchase ID awaiting confirmation
 });
+
 
 // Guest photo + wish submissions
 export const wishes = pgTable("wishes", {
@@ -44,3 +47,27 @@ export const wishes = pgTable("wishes", {
   imageKey: text("image_key").notNull(), // Cloudflare R2 object key
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// System activity/audit logs
+export const logs = pgTable("logs", {
+  id: text("id").primaryKey(),
+  userId: text("user_id"), // plain text, no references constraint (matches events table)
+  action: text("action").notNull(), // e.g. "create_event", "upload_photo", "delete_event"
+  details: text("details"), // JSON string or text descriptions
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// User settings and preferences
+export const userSettings = pgTable("user_settings", {
+  userId: text("user_id").primaryKey(),
+  phoneNumber: text("phone_number"),
+  defaultEventVisibility: text("default_event_visibility").default("public").notNull(), // 'public' | 'private'
+  defaultTheme: text("default_theme").default("dark").notNull(), // 'dark' | 'light' | 'system'
+  notifyOnUpload: boolean("notify_on_upload").default(true).notNull(),
+  notifyOnLimit: boolean("notify_on_limit").default(true).notNull(),
+  notifyOnExpiry: boolean("notify_on_expiry").default(true).notNull(),
+  notifyOnReceipt: boolean("notify_on_receipt").default(true).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+

@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
-import { db, events } from "@/lib/db";
+import { db, events, payments } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { logActivity } from "@/app/(dashboard)/dashboard/events/_actions/event-actions";
 import { revalidatePath } from "next/cache";
@@ -83,6 +83,15 @@ export async function GET(request: NextRequest) {
         pendingPurchaseId: null, // clear after successful upgrade
       })
       .where(eq(events.id, event_id));
+
+    // Update the payments ledger record to status: 'paid'
+    await db
+      .update(payments)
+      .set({
+        status: "paid",
+        updatedAt: new Date(),
+      })
+      .where(eq(payments.id, purchaseId));
 
     // 4. Log activity + revalidate — legal here because it's a Route Handler, not a render
     await logActivity(

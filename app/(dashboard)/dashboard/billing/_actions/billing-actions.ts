@@ -1,6 +1,6 @@
 "use server";
 
-import { db, events } from "@/lib/db";
+import { db, events, payments } from "@/lib/db";
 import { auth } from "@/lib/auth/server";
 import { eq, and } from "drizzle-orm";
 import { logActivity } from "../../events/_actions/event-actions";
@@ -85,6 +85,19 @@ export async function upgradeEventAction(eventId: string, plan: "premium" | "pro
       .update(events)
       .set({ pendingPurchaseId: data.id })
       .where(eq(events.id, eventId));
+
+    // 5. Create a pending payment ledger entry in the payments table
+    await db.insert(payments).values({
+      id: data.id,
+      userId: session.user.id,
+      eventId: eventId,
+      eventName: event.name,
+      plan: plan,
+      amount: amount,
+      currency: "MYR",
+      status: "pending",
+      paymentGateway: "CHIP",
+    });
 
     return { success: true, checkoutUrl: data.checkout_url };
   } catch (error: any) {

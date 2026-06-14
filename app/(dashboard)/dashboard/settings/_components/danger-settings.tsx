@@ -49,7 +49,7 @@ export function DangerSettings() {
           <div className="space-y-0.5">
             <p className="font-bold text-foreground">Delete Account</p>
             <span className="text-muted-foreground block">
-              Permanently delete your account, events, wishes, and all Cloudflare R2 guestbook images.
+              Permanently delete your account, events, wishes, and all uploaded guestbook images.
             </span>
           </div>
           <Button

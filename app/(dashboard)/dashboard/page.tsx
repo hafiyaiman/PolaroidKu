@@ -31,9 +31,9 @@ export default async function Page() {
       icon: <CameraIcon className="size-5 text-primary" />,
     },
     {
-      title: "Cloudflare R2 Secure Storage",
+      title: "Secure Storage Space",
       value: dbStats.storageUsed,
-      description: "Isolated R2 bucket space utilized",
+      description: "Total space utilized by uploads",
       icon: <CloudArrowUpIcon className="size-5 text-primary" />,
     },
     {

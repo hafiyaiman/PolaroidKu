@@ -22,7 +22,7 @@ export function DeveloperSettings({ userId, role }: DeveloperSettingsProps) {
       <CardHeader className="pb-3 border-b border-border/30">
         <CardTitle className="text-sm font-bold text-foreground">Storage Credentials & Configuration</CardTitle>
         <CardDescription className="text-xs">
-          Your events store guest photos directly in Cloudflare R2 object storage.
+          Your events store guest photos securely in optimized cloud storage.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 pt-4 text-xs">
@@ -42,7 +42,7 @@ export function DeveloperSettings({ userId, role }: DeveloperSettingsProps) {
         </div>
 
         <div className="p-3.5 rounded-xl bg-green-500/5 border border-green-500/10 flex justify-between items-center">
-          <span className="text-muted-foreground font-semibold">R2 Storage Gateway Connection:</span>
+          <span className="text-muted-foreground font-semibold">Cloud Storage Gateway Connection:</span>
           <Badge className="bg-green-500/15 text-green-500 border border-green-500/20 flex items-center gap-1.5 font-semibold">
             <CheckCircleIcon weight="fill" className="size-4" />
             Online & Linked

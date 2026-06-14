@@ -3,7 +3,8 @@
 import { db, events, wishes, logs } from "@/lib/db";
 import { auth } from "@/lib/auth/server";
 import { eq, and, count, desc } from "drizzle-orm";
-import { getPresignedDownloadUrl } from "@/lib/storage/r2";
+import { getPresignedDownloadUrl, deleteObjectFromR2, deleteEventFolderFromR2 } from "@/lib/storage/r2";
+
 
 // Helper to sanitize/slugify event names for IDs
 function slugify(text: string) {
@@ -205,3 +206,122 @@ export async function getEventDetails(eventId: string) {
     return { error: error.message || "Failed to load event details." };
   }
 }
+
+export async function updateEventDetails(
+  eventId: string,
+  data: {
+    name?: string;
+    date?: string;
+    welcomeMessage?: string;
+    status?: "Active" | "Archived" | "Draft";
+  }
+) {
+  const { data: session } = await auth.getSession();
+  if (!session?.user?.id) {
+    return { error: "Unauthorized" };
+  }
+
+  try {
+    const [event] = await db
+      .select()
+      .from(events)
+      .where(and(eq(events.id, eventId), eq(events.userId, session.user.id)));
+
+    if (!event) {
+      return { error: "Event not found or unauthorized." };
+    }
+
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.date !== undefined) updateData.date = data.date;
+    if (data.welcomeMessage !== undefined) updateData.welcomeMessage = data.welcomeMessage;
+    if (data.status !== undefined) updateData.status = data.status;
+
+    await db.update(events).set(updateData).where(eq(events.id, eventId));
+
+    await logActivity("update_event", `Updated settings for event "${event.name}" (${eventId})`);
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to update event details:", error);
+    return { error: error.message || "Failed to update event details." };
+  }
+}
+
+export async function deleteEventAction(eventId: string) {
+  const { data: session } = await auth.getSession();
+  if (!session?.user?.id) {
+    return { error: "Unauthorized" };
+  }
+
+  try {
+    const [event] = await db
+      .select()
+      .from(events)
+      .where(and(eq(events.id, eventId), eq(events.userId, session.user.id)));
+
+    if (!event) {
+      return { error: "Event not found or unauthorized." };
+    }
+
+    // Delete folder from R2
+    await deleteEventFolderFromR2(session.user.id, eventId);
+
+    // Delete from DB (cascade deletes wishes)
+    await db.delete(events).where(eq(events.id, eventId));
+
+    await logActivity("delete_event", `Deleted event "${event.name}" (${eventId})`);
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to delete event:", error);
+    return { error: error.message || "Failed to delete event." };
+  }
+}
+
+export async function deleteSubmissionAction(eventId: string, submissionId: string) {
+  const { data: session } = await auth.getSession();
+  if (!session?.user?.id) {
+    return { error: "Unauthorized" };
+  }
+
+  try {
+    const [event] = await db
+      .select()
+      .from(events)
+      .where(and(eq(events.id, eventId), eq(events.userId, session.user.id)));
+
+    if (!event) {
+      return { error: "Event not found or unauthorized." };
+    }
+
+    const [submission] = await db
+      .select()
+      .from(wishes)
+      .where(and(eq(wishes.id, submissionId), eq(wishes.eventId, eventId)));
+
+    if (!submission) {
+      return { error: "Submission not found." };
+    }
+
+    if (submission.imageKey) {
+      await deleteObjectFromR2(submission.imageKey);
+    }
+
+    await db.delete(wishes).where(eq(wishes.id, submissionId));
+
+    const newCount = Math.max(0, event.photoCount - 1);
+    await db.update(events).set({ photoCount: newCount }).where(eq(events.id, eventId));
+
+    await logActivity(
+      "delete_submission",
+      `Deleted submission by "${submission.guestName}" for event "${event.name}"`
+    );
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to delete submission:", error);
+    return { error: error.message || "Failed to delete submission." };
+  }
+}
+

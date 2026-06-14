@@ -172,30 +172,8 @@ special memories!
     toast.success("Invoice download initiated.");
   };
 
-  // Derive active purchases dynamically
-  const purchases = React.useMemo(() => {
-    return eventsList
-      .filter((e) => e.plan !== "free")
-      .map((e) => {
-        let price = "RM0";
-        if (e.plan === "premium") price = "RM29";
-        if (e.plan === "pro") price = "RM59";
-
-        return {
-          id: `INV-${e.id.substring(0, 8).toUpperCase()}`,
-          eventId: e.id,
-          eventName: e.name,
-          plan: e.plan === "premium" ? "Premium Event" : "Pro Event",
-          price,
-          date: new Date().toLocaleDateString("en-MY", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          }),
-          status: "Paid",
-        };
-      });
-  }, [eventsList]);
+  // Use the real transaction records fetched from the database
+  const purchases = initialPurchases;
 
   // Selected event metrics
   const photoCount = selectedEvent?.photoCount || 0;

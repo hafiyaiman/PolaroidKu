@@ -99,7 +99,7 @@ export function UsageSettings({ usage }: UsageSettingsProps) {
             </div>
             <Progress value={storagePct} className="h-2.5 bg-muted" />
             <p className="text-[10px] text-muted-foreground mt-1">
-              Aggregated file sizes of private guest photos inside your Cloudflare R2 isolation prefix.
+              Aggregated file sizes of private guest photos inside your cloud storage directory.
             </p>
           </div>
         </div>

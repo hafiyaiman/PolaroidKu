@@ -165,7 +165,7 @@ export function AccountSettings({ user, phoneNumber: initialPhone }: AccountSett
               className="text-xs bg-muted/40 text-muted-foreground border-border/25 cursor-not-allowed select-none"
             />
             <p className="text-[10px] text-muted-foreground">
-              Your login email is managed via Neon Auth and cannot be modified here.
+              Your login email is managed by the security system and cannot be modified here.
             </p>
           </div>
         </CardContent>

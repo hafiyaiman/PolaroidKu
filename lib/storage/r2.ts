@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command, DeleteObjectCommand, DeleteObjectsCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const BUCKET_NAME = process.env.R2_BUCKET_NAME || "polaroidku";
@@ -89,5 +89,60 @@ export async function getPresignedDownloadUrl(key: string) {
   const downloadUrl = await getSignedUrl(r2Client, command, { expiresIn: 3600 });
   return downloadUrl;
 }
+
+/**
+ * Deletes a single object from Cloudflare R2 by key.
+ */
+export async function deleteObjectFromR2(key: string) {
+  try {
+    const command = new DeleteObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+    });
+    await r2Client.send(command);
+  } catch (error) {
+    console.error(`Failed to delete object from R2 (key: ${key}):`, error);
+    throw error;
+  }
+}
+
+/**
+ * Deletes all objects in an event folder on R2.
+ */
+export async function deleteEventFolderFromR2(userId: string, eventId: string) {
+  try {
+    const prefix = `users/${userId}/events/${eventId}/`;
+    let isTruncated = true;
+    let continuationToken: string | undefined = undefined;
+
+    while (isTruncated) {
+      const listRes: any = await r2Client.send(
+        new ListObjectsV2Command({
+          Bucket: BUCKET_NAME,
+          Prefix: prefix,
+          ContinuationToken: continuationToken,
+        })
+      );
+
+      if (listRes.Contents && listRes.Contents.length > 0) {
+        const objectsToDelete = listRes.Contents.map((item: any) => ({ Key: item.Key }));
+        const deleteCommand = new DeleteObjectsCommand({
+          Bucket: BUCKET_NAME,
+          Delete: {
+            Objects: objectsToDelete,
+            Quiet: true,
+          },
+        });
+        await r2Client.send(deleteCommand);
+      }
+
+      isTruncated = listRes.IsTruncated ?? false;
+      continuationToken = listRes.NextContinuationToken;
+    }
+  } catch (error) {
+    console.error(`Failed to delete event folder from R2 (eventId: ${eventId}):`, error);
+  }
+}
+
 
 

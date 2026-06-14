@@ -22,8 +22,10 @@ import {
 import { useEvents } from "../_hooks/use-events";
 import { useUpdateEvent, useDeleteEvent } from "../_hooks/use-event-details";
 
+import { DashboardEvent } from "@/types/db";
+
 interface EventsListViewProps {
-  initialEvents: any[];
+  initialEvents: DashboardEvent[];
 }
 
 export function EventsListView({ initialEvents }: EventsListViewProps) {
@@ -73,7 +75,7 @@ export function EventsListView({ initialEvents }: EventsListViewProps) {
               className="flex flex-col bg-card/65 border-border/40 hover:border-primary/20 hover:shadow-lg transition-all relative overflow-hidden group"
             >
               {/* Event Cover Frame / Accent Header */}
-              <div className="h-2 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
+              {/* <div className="h-2 bg-gradient-to-r from-primary via-primary/70 to-primary/40" /> */}
               
               <CardHeader className="pb-3">
                 <div className="flex justify-between items-start">
@@ -133,7 +135,7 @@ export function EventsListView({ initialEvents }: EventsListViewProps) {
 }
 
 interface ManageEventDialogProps {
-  event: any;
+  event: DashboardEvent;
 }
 
 function ManageEventDialog({ event }: ManageEventDialogProps) {
@@ -150,11 +152,14 @@ function ManageEventDialog({ event }: ManageEventDialogProps) {
   // Reset fields when dialog opens
   React.useEffect(() => {
     if (open) {
-      setName(event.name);
-      setDate(event.date);
-      setWelcomeMessage(event.welcomeMessage || "");
-      setStatus(event.status);
-      setError("");
+      const timer = setTimeout(() => {
+        setName(event.name);
+        setDate(event.date);
+        setWelcomeMessage(event.welcomeMessage || "");
+        setStatus(event.status);
+        setError("");
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [open, event]);
 
@@ -181,8 +186,9 @@ function ManageEventDialog({ event }: ManageEventDialogProps) {
         toast.success("Event settings updated successfully!");
         setOpen(false);
       }
-    } catch (err: any) {
-      console.error(err);
+    } catch (err) {
+      const error = err as Error;
+      console.error(error);
       setError("Failed to update event settings.");
     }
   };
@@ -204,8 +210,9 @@ function ManageEventDialog({ event }: ManageEventDialogProps) {
         toast.success("Event deleted successfully!");
         setOpen(false);
       }
-    } catch (err: any) {
-      console.error(err);
+    } catch (err) {
+      const error = err as Error;
+      console.error(error);
       toast.error("Failed to delete event.");
     }
   };

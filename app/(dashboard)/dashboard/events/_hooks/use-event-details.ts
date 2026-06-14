@@ -8,15 +8,30 @@ import {
   deleteSubmissionAction,
 } from "../_actions/event-actions";
 
-export function useEventDetails(id: string, initialData?: any) {
-  return useQuery({
+import { DbEvent } from "@/types/db";
+
+export interface EventDetailsData {
+  success?: boolean;
+  event?: DbEvent & { coverImageUrl?: string };
+  submissions?: {
+    id: string;
+    guestName: string;
+    wish: string;
+    imageUrl: string;
+    time: string;
+  }[];
+  error?: string;
+}
+
+export function useEventDetails(id: string, initialData?: EventDetailsData) {
+  return useQuery<EventDetailsData>({
     queryKey: ["event-details", id],
     queryFn: async () => {
       const res = await getEventDetails(id);
       if (res.error) {
         throw new Error(res.error);
       }
-      return res;
+      return res as EventDetailsData;
     },
     initialData: initialData,
   });
@@ -30,6 +45,15 @@ export function useUpdateEvent(id: string) {
       date?: string;
       welcomeMessage?: string;
       status?: "Active" | "Archived" | "Draft";
+      template?: string;
+      coverImageKey?: string;
+      preheader?: string;
+      subheader?: string;
+      buttonShape?: string;
+      textColor?: string;
+      buttonColor?: string;
+      buttonTextColor?: string;
+      bgColor?: string;
     }) => updateEventDetails(id, data),
     onSuccess: (res) => {
       if (res.success) {

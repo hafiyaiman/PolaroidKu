@@ -22,6 +22,8 @@ import { NotificationSettings } from "./notification-settings";
 import { PreferenceSettings } from "./preference-settings";
 import { DeveloperSettings } from "./developer-settings";
 import { DangerSettings } from "./danger-settings";
+import { type SessionRecord } from "../_hooks/use-settings";
+import { type BillingPurchase } from "./billing-settings";
 
 interface User {
   id: string;
@@ -54,8 +56,8 @@ interface SettingsFormProps {
   user: User;
   initialSettings: UserSettingsData | null;
   initialUsage: UsageMetricsData | null;
-  initialSessions: any[];
-  initialPurchases: any[];
+  initialSessions: SessionRecord[];
+  initialPurchases: BillingPurchase[];
 }
 
 export function SettingsForm({

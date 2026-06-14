@@ -1,13 +1,13 @@
-import type { ComponentType } from "react";
+import type { ComponentType, ComponentPropsWithoutRef } from "react";
 
 // Fallback interface matching MDXComponents structure
 type ComponentsProps = {
-  h2?: ComponentType<any> | string;
-  h3?: ComponentType<any> | string;
-  p?: ComponentType<any> | string;
-  ul?: ComponentType<any> | string;
-  li?: ComponentType<any> | string;
-  strong?: ComponentType<any> | string;
+  h2?: ComponentType<ComponentPropsWithoutRef<"h2">> | string;
+  h3?: ComponentType<ComponentPropsWithoutRef<"h3">> | string;
+  p?: ComponentType<ComponentPropsWithoutRef<"p">> | string;
+  ul?: ComponentType<ComponentPropsWithoutRef<"ul">> | string;
+  li?: ComponentType<ComponentPropsWithoutRef<"li">> | string;
+  strong?: ComponentType<ComponentPropsWithoutRef<"strong">> | string;
 };
 
 export const metadata = {
@@ -15,11 +15,11 @@ export const metadata = {
 };
 
 export default function Privacy({ components }: { components?: ComponentsProps }) {
-  const H2 = (components?.h2 || "h2") as any;
-  const P = (components?.p || "p") as any;
-  const Ul = (components?.ul || "ul") as any;
-  const Li = (components?.li || "li") as any;
-  const Strong = (components?.strong || "strong") as any;
+  const H2 = (components?.h2 || "h2") as ComponentType<ComponentPropsWithoutRef<"h2">> | string;
+  const P = (components?.p || "p") as ComponentType<ComponentPropsWithoutRef<"p">> | string;
+  const Ul = (components?.ul || "ul") as ComponentType<ComponentPropsWithoutRef<"ul">> | string;
+  const Li = (components?.li || "li") as ComponentType<ComponentPropsWithoutRef<"li">> | string;
+  const Strong = (components?.strong || "strong") as ComponentType<ComponentPropsWithoutRef<"strong">> | string;
 
   return (
     <>

@@ -44,10 +44,20 @@ export async function logActivity(action: string, details?: string) {
 }
 
 export async function createEvent(data: {
+  id?: string;
   name: string;
   date: string;
   welcomeMessage?: string;
   plan?: EventPlan;
+  template?: string;
+  coverImageKey?: string;
+  preheader?: string;
+  subheader?: string;
+  buttonShape?: string;
+  textColor?: string;
+  buttonColor?: string;
+  buttonTextColor?: string;
+  bgColor?: string;
 }) {
   const { data: session } = await auth.getSession();
   if (!session?.user?.id) {
@@ -61,7 +71,7 @@ export async function createEvent(data: {
   expiresAt.setDate(expiresAt.getDate() + retentionDays);
 
   const baseSlug = slugify(data.name) || "event";
-  const uniqueId = `${baseSlug}-${Math.random().toString(36).substring(2, 8)}`;
+  const uniqueId = data.id || `${baseSlug}-${Math.random().toString(36).substring(2, 8)}`;
 
   try {
     await db.insert(events).values({
@@ -76,6 +86,15 @@ export async function createEvent(data: {
       photoCount: 0,
       retentionDays,
       expiresAt,
+      template: data.template || "classic",
+      coverImageKey: data.coverImageKey || null,
+      preheader: data.preheader || "Our Guestbook",
+      subheader: data.subheader || null,
+      buttonShape: data.buttonShape || "rounded",
+      textColor: data.textColor || "#0F172A",
+      buttonColor: data.buttonColor || "#0F172A",
+      buttonTextColor: data.buttonTextColor || "#FFFFFF",
+      bgColor: data.bgColor || "#FAF9F5",
     });
 
     await logActivity(
@@ -84,7 +103,8 @@ export async function createEvent(data: {
     );
 
     return { success: true, eventId: uniqueId };
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as Error;
     console.error("Failed to create event:", error);
     return { error: error.message || "Failed to create event." };
   }
@@ -196,12 +216,25 @@ export async function getEventDetails(eventId: string) {
       })
     );
 
+    let coverImageUrl = "";
+    if (event.coverImageKey) {
+      try {
+        coverImageUrl = await getPresignedDownloadUrl(event.coverImageKey);
+      } catch (err) {
+        console.error("Failed to sign cover image URL:", err);
+      }
+    }
+
     return {
       success: true,
-      event,
+      event: {
+        ...event,
+        coverImageUrl,
+      },
       submissions: wishesWithDownloadUrls,
     };
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as Error;
     console.error("Failed to get event details:", error);
     return { error: error.message || "Failed to load event details." };
   }
@@ -214,6 +247,15 @@ export async function updateEventDetails(
     date?: string;
     welcomeMessage?: string;
     status?: "Active" | "Archived" | "Draft";
+    template?: string;
+    coverImageKey?: string;
+    preheader?: string;
+    subheader?: string;
+    buttonShape?: string;
+    textColor?: string;
+    buttonColor?: string;
+    buttonTextColor?: string;
+    bgColor?: string;
   }
 ) {
   const { data: session } = await auth.getSession();
@@ -231,20 +273,72 @@ export async function updateEventDetails(
       return { error: "Event not found or unauthorized." };
     }
 
-    const updateData: any = {};
+    const updateData: Partial<typeof events.$inferInsert> = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.date !== undefined) updateData.date = data.date;
     if (data.welcomeMessage !== undefined) updateData.welcomeMessage = data.welcomeMessage;
     if (data.status !== undefined) updateData.status = data.status;
+    if (data.template !== undefined) updateData.template = data.template;
+    if (data.coverImageKey !== undefined) updateData.coverImageKey = data.coverImageKey;
+    if (data.preheader !== undefined) updateData.preheader = data.preheader;
+    if (data.subheader !== undefined) updateData.subheader = data.subheader;
+    if (data.buttonShape !== undefined) updateData.buttonShape = data.buttonShape;
+    if (data.textColor !== undefined) updateData.textColor = data.textColor;
+    if (data.buttonColor !== undefined) updateData.buttonColor = data.buttonColor;
+    if (data.buttonTextColor !== undefined) updateData.buttonTextColor = data.buttonTextColor;
+    if (data.bgColor !== undefined) updateData.bgColor = data.bgColor;
 
     await db.update(events).set(updateData).where(eq(events.id, eventId));
 
     await logActivity("update_event", `Updated settings for event "${event.name}" (${eventId})`);
 
     return { success: true };
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as Error;
     console.error("Failed to update event details:", error);
     return { error: error.message || "Failed to update event details." };
+  }
+}
+
+export async function requestCoverUploadUrl(data: {
+  eventId: string;
+  filename: string;
+  contentType: string;
+  isNewEvent?: boolean;
+}) {
+  const { data: session } = await auth.getSession();
+  if (!session?.user?.id) {
+    return { error: "Unauthorized" };
+  }
+
+  try {
+    if (!data.isNewEvent) {
+      const [event] = await db
+        .select({ userId: events.userId })
+        .from(events)
+        .where(and(eq(events.id, data.eventId), eq(events.userId, session.user.id)));
+
+      if (!event) {
+        return { error: "Event not found or unauthorized." };
+      }
+    }
+
+    const { getPresignedUploadUrl } = await import("@/lib/storage/r2");
+    
+    // Construct key under user prefix
+    const sanitizedFilename = `cover-${Date.now()}-${data.filename.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+    const { uploadUrl, key } = await getPresignedUploadUrl(
+      session.user.id,
+      data.eventId,
+      sanitizedFilename,
+      data.contentType
+    );
+
+    return { success: true, uploadUrl, key };
+  } catch (err) {
+    const error = err as Error;
+    console.error("Failed to generate cover upload URL:", error);
+    return { error: "Failed to initialize upload session." };
   }
 }
 
@@ -273,7 +367,8 @@ export async function deleteEventAction(eventId: string) {
     await logActivity("delete_event", `Deleted event "${event.name}" (${eventId})`);
 
     return { success: true };
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as Error;
     console.error("Failed to delete event:", error);
     return { error: error.message || "Failed to delete event." };
   }
@@ -319,7 +414,8 @@ export async function deleteSubmissionAction(eventId: string, submissionId: stri
     );
 
     return { success: true };
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as Error;
     console.error("Failed to delete submission:", error);
     return { error: error.message || "Failed to delete submission." };
   }

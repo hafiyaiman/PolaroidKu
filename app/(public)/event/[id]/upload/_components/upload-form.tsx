@@ -3,27 +3,64 @@
 import * as React from "react";
 import { requestGuestUploadUrl, submitGuestWish } from "@/app/actions/guest-actions";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { type DbEvent } from "@/types/db";
 import {
   CameraIcon,
   CheckCircleIcon,
   HeartIcon,
   ArrowRightIcon,
+  ArrowLeftIcon,
   CalendarIcon,
   WarningIcon,
   SparkleIcon,
   SpinnerGapIcon
 } from "@phosphor-icons/react";
+import { GuestLandingTemplate } from "@/components/guest-landing-template";
+
+export type PublicEventDetails = Pick<
+  DbEvent,
+  | "id"
+  | "name"
+  | "date"
+  | "status"
+  | "welcomeMessage"
+  | "template"
+  | "coverImageKey"
+  | "preheader"
+  | "subheader"
+  | "buttonShape"
+  | "textColor"
+  | "buttonColor"
+  | "buttonTextColor"
+  | "bgColor"
+> & { coverImageUrl?: string };
 
 interface UploadFormProps {
   id: string;
-  initialEvent: any;
+  initialEvent: PublicEventDetails;
+}
+
+// Calculate high contrast text color (black or white) for buttons
+function getContrastColor(hexColor: string) {
+  if (!hexColor) return "#FFFFFF";
+  const color = hexColor.startsWith("#") ? hexColor.slice(1) : hexColor;
+  if (color.length !== 6) return "#FFFFFF";
+  
+  const r = parseInt(color.slice(0, 2), 16);
+  const g = parseInt(color.slice(2, 4), 16);
+  const b = parseInt(color.slice(4, 6), 16);
+  
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq >= 128 ? "#0F172A" : "#FFFFFF";
 }
 
 export function UploadForm({ id, initialEvent }: UploadFormProps) {
-  const [eventData] = React.useState<any>(initialEvent);
+  const [eventData] = React.useState<PublicEventDetails>(initialEvent);
+  
+  const [view, setView] = React.useState<"landing" | "form">("landing");
   
   const [guestName, setGuestName] = React.useState("");
   const [wish, setWish] = React.useState("");
@@ -36,6 +73,20 @@ export function UploadForm({ id, initialEvent }: UploadFormProps) {
   const [actionError, setActionError] = React.useState("");
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Helper to format button shapes based on database settings
+  const getButtonClass = () => {
+    const base = "w-full border-none font-semibold cursor-pointer active:scale-95 transition-all text-xs h-9.5 gap-1.5 shadow-md flex items-center justify-center";
+    switch (eventData.buttonShape) {
+      case "square":
+        return `${base} rounded-none`;
+      case "pill":
+        return `${base} rounded-full`;
+      case "rounded":
+      default:
+        return `${base} rounded-lg`;
+    }
+  };
 
   // Handle file select/capture
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -149,17 +200,21 @@ export function UploadForm({ id, initialEvent }: UploadFormProps) {
 
       setUploadProgress(100);
       setSubmitSuccess(true);
-    } catch (err: any) {
-      console.error(err);
+    } catch (err) {
+      const error = err as Error;
+      console.error(error);
       setActionError("An unexpected error occurred. Please try again.");
     } finally {
       setIsUploading(false);
     }
   };
 
+  const customButtonBg = eventData.buttonColor || undefined;
+  const customButtonText = eventData.buttonTextColor || (eventData.buttonColor ? getContrastColor(eventData.buttonColor) : undefined);
+
   if (submitSuccess) {
     return (
-      <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-6 text-center">
+      <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-6 text-center select-none">
         <div className="relative mb-6">
           <div className="size-20 bg-primary/10 border border-primary/20 rounded-full flex items-center justify-center text-primary">
             <CheckCircleIcon weight="fill" className="size-10" />
@@ -173,7 +228,7 @@ export function UploadForm({ id, initialEvent }: UploadFormProps) {
         </p>
 
         {/* Polaroid frame preview of the submission */}
-        <div className="mt-8 bg-white p-3 pb-8 shadow-2xl rounded border border-neutral-100 flex flex-col items-center w-full max-w-[220px] text-slate-800 rotate-2">
+        <div className="mt-8 bg-white p-3 pb-8 shadow-2xl rounded border border-neutral-150 flex flex-col items-center w-full max-w-[220px] text-slate-800 rotate-2">
           <div className="relative aspect-square w-full overflow-hidden bg-neutral-900 border">
             {imagePreview && (
               <img src={imagePreview} alt="Polaroid Memory" className="object-cover w-full h-full" />
@@ -184,24 +239,68 @@ export function UploadForm({ id, initialEvent }: UploadFormProps) {
           </div>
         </div>
 
-        <Button
-          onClick={() => {
-            setFile(null);
-            setImagePreview("");
-            setWish("");
-            setSubmitSuccess(false);
-            setUploadProgress(0);
-          }}
-          className="mt-8 bg-primary hover:bg-primary/90 text-primary-foreground font-medium cursor-pointer active:scale-95 transition-all text-xs"
-        >
-          Submit Another Polaroid
-        </Button>
+        <div className="w-full max-w-[220px] mx-auto mt-8">
+          <Button
+            onClick={() => {
+              setFile(null);
+              setImagePreview("");
+              setWish("");
+              setSubmitSuccess(false);
+              setUploadProgress(0);
+              setView("landing"); // Return back to custom landing template
+            }}
+            className={getButtonClass()}
+            style={{
+              backgroundColor: customButtonBg,
+              color: customButtonText
+            }}
+          >
+            Submit Another Polaroid
+          </Button>
+        </div>
       </div>
     );
   }
 
+  // Render Visual Customizer Template landing view
+  if (view === "landing") {
+    return (
+      <div className="w-full min-h-screen h-screen flex flex-col overflow-hidden bg-background">
+        <GuestLandingTemplate
+          template={eventData.template || "classic"}
+          preheader={eventData.preheader || "Our Guestbook"}
+          eventName={eventData.name}
+          subheader={eventData.subheader || eventData.date}
+          coverImageUrl={eventData.coverImageUrl}
+          buttonShape={eventData.buttonShape || "rounded"}
+          textColor={eventData.textColor}
+          buttonColor={eventData.buttonColor}
+          buttonTextColor={eventData.buttonTextColor}
+          bgColor={eventData.bgColor}
+          onAction={() => setView("form")}
+          isPreview={false}
+        />
+      </div>
+    );
+  }
+
+  // Render Upload Form View
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-start py-8 px-4 overflow-y-auto w-full">
+    <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-start py-8 px-4 overflow-y-auto w-full select-none">
+      
+      {/* Back button to landing */}
+      <div className="w-full max-w-md flex justify-start mb-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setView("landing")}
+          className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer pl-0"
+        >
+          <ArrowLeftIcon className="size-3.5" />
+          Back to Welcome Page
+        </Button>
+      </div>
+
       {/* Event Banner */}
       <div className="w-full max-w-md text-center mb-6 px-2">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 mb-3 text-primary text-[10px] uppercase font-bold tracking-wider">
@@ -216,16 +315,10 @@ export function UploadForm({ id, initialEvent }: UploadFormProps) {
       </div>
 
       <Card className="w-full max-w-md bg-card border-border/60 backdrop-blur-md shadow-2xl relative overflow-hidden">
-        {/* Colorful top border using primary */}
         <div className="h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
         
         <CardHeader className="pb-4">
-          <CardTitle className="text-sm font-semibold text-foreground">Capture &amp; Sign the Guestbook</CardTitle>
-          {eventData.welcomeMessage && (
-            <CardDescription className="text-xs text-muted-foreground leading-relaxed font-serif italic mt-1.5">
-              "{eventData.welcomeMessage}"
-            </CardDescription>
-          )}
+          <CardTitle className="text-sm font-semibold text-foreground">Upload Media</CardTitle>
         </CardHeader>
 
         <form onSubmit={handleSubmit}>
@@ -285,7 +378,7 @@ export function UploadForm({ id, initialEvent }: UploadFormProps) {
                   id="guest-photo"
                   ref={fileInputRef}
                   accept="image/*"
-                  capture="environment" // Forces back camera on mobile
+                  capture="environment"
                   className="hidden"
                   onChange={handleFileChange}
                   disabled={isUploading}
@@ -348,15 +441,19 @@ export function UploadForm({ id, initialEvent }: UploadFormProps) {
             )}
           </CardContent>
 
-          <CardFooter className="border-t border-border/40 pt-4 pb-5 flex gap-2">
-            <Button
+          <CardFooter className="border-t border-border/40 pt-4 pb-5">
+            <button
               type="submit"
               disabled={isUploading || !file}
-              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold cursor-pointer active:scale-95 transition-all text-xs h-9.5 gap-1.5 shadow-md shadow-primary/10"
+              className={getButtonClass()}
+              style={{
+                backgroundColor: customButtonBg,
+                color: customButtonText
+              }}
             >
-              Sign guestbook
+              Upload Media
               <ArrowRightIcon className="size-3.5" />
-            </Button>
+            </button>
           </CardFooter>
         </form>
       </Card>

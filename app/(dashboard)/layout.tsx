@@ -18,10 +18,12 @@ export default async function DashboardLayout({
   return (
     <SidebarProvider>
       <AppSidebar user={session.user} />
-      <SidebarInset>
+      <SidebarInset className="max-h-svh overflow-hidden flex flex-col">
         <PageTitleProvider>
           <DashboardHeader />
-          {children}
+          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+            {children}
+          </div>
         </PageTitleProvider>
       </SidebarInset>
     </SidebarProvider>

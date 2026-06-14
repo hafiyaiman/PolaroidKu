@@ -34,7 +34,12 @@ export function NotificationSettings({
   const { mutateAsync: updateNotifications, isPending } = useUpdateNotificationSettings();
 
   const handleToggleNotification = (field: "upload" | "limit" | "expiry" | "receipt", value: boolean) => {
-    const payload: any = {};
+    const payload: Partial<{
+      notifyOnUpload: boolean;
+      notifyOnLimit: boolean;
+      notifyOnExpiry: boolean;
+      notifyOnReceipt: boolean;
+    }> = {};
     if (field === "upload") {
       setNotifyOnUpload(value);
       payload.notifyOnUpload = value;

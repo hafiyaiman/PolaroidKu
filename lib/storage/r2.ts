@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command, DeleteObjectCommand, DeleteObjectsCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command, DeleteObjectCommand, DeleteObjectsCommand, ListObjectsV2CommandOutput } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const BUCKET_NAME = process.env.R2_BUCKET_NAME || "polaroidku";
@@ -25,7 +25,7 @@ export async function getUserStorageSize(userId: string): Promise<number> {
 
   try {
     while (isTruncated) {
-      const response: any = await r2Client.send(
+      const response: ListObjectsV2CommandOutput = await r2Client.send(
         new ListObjectsV2Command({
           Bucket: BUCKET_NAME,
           Prefix: `users/${userId}/`,
@@ -116,7 +116,7 @@ export async function deleteEventFolderFromR2(userId: string, eventId: string) {
     let continuationToken: string | undefined = undefined;
 
     while (isTruncated) {
-      const listRes: any = await r2Client.send(
+      const listRes: ListObjectsV2CommandOutput = await r2Client.send(
         new ListObjectsV2Command({
           Bucket: BUCKET_NAME,
           Prefix: prefix,
@@ -125,7 +125,7 @@ export async function deleteEventFolderFromR2(userId: string, eventId: string) {
       );
 
       if (listRes.Contents && listRes.Contents.length > 0) {
-        const objectsToDelete = listRes.Contents.map((item: any) => ({ Key: item.Key }));
+        const objectsToDelete = listRes.Contents.map((item) => ({ Key: item.Key }));
         const deleteCommand = new DeleteObjectsCommand({
           Bucket: BUCKET_NAME,
           Delete: {

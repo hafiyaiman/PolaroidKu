@@ -1,7 +1,7 @@
 "use server";
 
 import { db, events, wishes } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getPresignedUploadUrl } from "@/lib/storage/r2";
 import crypto from "crypto";
 
@@ -14,6 +14,15 @@ export async function getPublicEventDetails(eventId: string) {
         date: events.date,
         status: events.status,
         welcomeMessage: events.welcomeMessage,
+        template: events.template,
+        coverImageKey: events.coverImageKey,
+        preheader: events.preheader,
+        subheader: events.subheader,
+        buttonShape: events.buttonShape,
+        textColor: events.textColor,
+        buttonColor: events.buttonColor,
+        buttonTextColor: events.buttonTextColor,
+        bgColor: events.bgColor,
       })
       .from(events)
       .where(eq(events.id, eventId));
@@ -26,8 +35,25 @@ export async function getPublicEventDetails(eventId: string) {
       return { error: "This event guestbook is not active." };
     }
 
-    return { success: true, event };
-  } catch (error: any) {
+    let coverImageUrl = "";
+    if (event.coverImageKey) {
+      try {
+        const { getPresignedDownloadUrl } = await import("@/lib/storage/r2");
+        coverImageUrl = await getPresignedDownloadUrl(event.coverImageKey);
+      } catch (err) {
+        console.error("Failed to sign public cover image URL:", err);
+      }
+    }
+
+    return { 
+      success: true, 
+      event: {
+        ...event,
+        coverImageUrl
+      }
+    };
+  } catch (err) {
+    const error = err as Error;
     console.error("Failed to load public event details:", error);
     return { error: "Failed to load event details." };
   }
@@ -65,7 +91,8 @@ export async function requestGuestUploadUrl(data: {
     );
 
     return { success: true, uploadUrl, key };
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as Error;
     console.error("Failed to generate presigned upload URL for guest:", error);
     return { error: "Failed to initialize upload session. Please try again." };
   }
@@ -100,7 +127,8 @@ export async function submitGuestWish(data: {
     });
 
     return { success: true, wishId };
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as Error;
     console.error("Failed to submit guestbook wish:", error);
     return { error: "Failed to save your guestbook entry. Please try again." };
   }

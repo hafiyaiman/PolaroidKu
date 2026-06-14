@@ -19,26 +19,14 @@ import {
   LockKeyIcon,
   PencilSimpleIcon,
   TrashIcon,
-  ShieldCheckIcon,
-  UserIcon,
 } from "@phosphor-icons/react";
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTableToolbar } from "@/components/data-table/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
-import { useAdminUsers } from "../../_hooks/use-admin";
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  eventsCount: number;
-  bucketSize: string;
-  r2ConsoleUrl?: string;
-}
+import { useAdminUsers, type AdminUser } from "../../_hooks/use-admin";
 
 interface UsersTableProps {
-  users: User[];
+  users: AdminUser[];
 }
 
 export function UsersTable({ users: initialUsers }: UsersTableProps) {
@@ -53,7 +41,7 @@ export function UsersTable({ users: initialUsers }: UsersTableProps) {
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
 
-  const columns = React.useMemo<ColumnDef<User>[]>(
+  const columns = React.useMemo<ColumnDef<AdminUser>[]>(
     () => [
       {
         id: "email",

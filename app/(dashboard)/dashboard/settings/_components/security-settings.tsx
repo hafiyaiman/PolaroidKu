@@ -19,10 +19,11 @@ import {
   useChangePassword,
   useRevokeSession,
   useRevokeOtherSessions,
+  type SessionRecord,
 } from "../_hooks/use-settings";
 
 interface SecuritySettingsProps {
-  initialSessions: any[];
+  initialSessions: SessionRecord[];
 }
 
 export function SecuritySettings({ initialSessions }: SecuritySettingsProps) {
@@ -185,7 +186,7 @@ export function SecuritySettings({ initialSessions }: SecuritySettingsProps) {
           </div>
         </CardHeader>
         <CardContent className="pt-4 divide-y divide-border/20">
-          {sessions.map((sess: any) => {
+          {sessions.map((sess: SessionRecord) => {
             const isCurrent = sess.active;
             return (
               <div key={sess.id} className="flex justify-between items-center py-3.5 first:pt-0 last:pb-0 text-xs">

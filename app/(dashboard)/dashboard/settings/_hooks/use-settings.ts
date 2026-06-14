@@ -12,13 +12,22 @@ import {
   getSessionsAction,
 } from "../_actions/settings-actions";
 
-export function useSessions(initialSessions?: any[]) {
-  return useQuery({
+export interface SessionRecord {
+  id: string;
+  token: string;
+  userAgent?: string | null;
+  ipAddress?: string | null;
+  expiresAt: string | Date;
+  active?: boolean;
+}
+
+export function useSessions(initialSessions?: SessionRecord[]) {
+  return useQuery<SessionRecord[]>({
     queryKey: ["sessions"],
     queryFn: async () => {
       const res = await getSessionsAction();
-      if (res.error) throw new Error(res.error);
-      return res.sessions || [];
+      if ("error" in res) throw new Error(res.error);
+      return (res.sessions as SessionRecord[]) || [];
     },
     initialData: initialSessions,
   });

@@ -13,15 +13,25 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CreditCardIcon, DownloadSimpleIcon } from "@phosphor-icons/react";
 
+export interface BillingPurchase {
+  id: string;
+  date: string;
+  eventName: string;
+  plan: string;
+  price: string;
+  status: string;
+  eventId?: string;
+}
+
 interface BillingSettingsProps {
-  initialPurchases: any[];
+  initialPurchases: BillingPurchase[];
 }
 
 export function BillingSettings({ initialPurchases }: BillingSettingsProps) {
   const [paymentMethod, setPaymentMethod] = React.useState<"card" | "fpx">("card");
-  const [purchases] = React.useState<any[]>(initialPurchases);
+  const [purchases] = React.useState<BillingPurchase[]>(initialPurchases);
 
-  const handleDownloadInvoice = (purchase: any) => {
+  const handleDownloadInvoice = (purchase: BillingPurchase) => {
     const invoiceContent = `================================================
                POLAROIDKU RECEIPT
 ================================================

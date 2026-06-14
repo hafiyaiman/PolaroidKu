@@ -22,8 +22,6 @@ import {
   ClockCountdownIcon,
   CreditCardIcon,
   ReceiptIcon,
-  ArrowUpRightIcon,
-  CoinsIcon,
   ArrowClockwiseIcon,
 } from "@phosphor-icons/react";
 import { useUpgradeEvent } from "../_hooks/use-billing";
@@ -35,7 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface BillingEvent {
+export interface BillingEvent {
   id: string;
   name: string;
   date: string;
@@ -48,9 +46,19 @@ interface BillingEvent {
   guestCount: number;
 }
 
+export interface BillingPurchase {
+  id: string;
+  date: string;
+  eventName: string;
+  plan: string;
+  price: string;
+  status: string;
+  eventId?: string;
+}
+
 interface BillingDashboardProps {
   initialEvents: BillingEvent[];
-  initialPurchases: any[];
+  initialPurchases: BillingPurchase[];
 }
 
 const PLANS = [
@@ -96,7 +104,7 @@ function daysLeft(dateStr: string | null) {
 }
 
 export function BillingDashboard({ initialEvents, initialPurchases }: BillingDashboardProps) {
-  const [eventsList, setEventsList] = React.useState<BillingEvent[]>(initialEvents);
+  const eventsList = initialEvents;
   const [selectedEventId, setSelectedEventId] = React.useState<string>(
     initialEvents[0]?.id || ""
   );
@@ -131,18 +139,19 @@ export function BillingDashboard({ initialEvents, initialPurchases }: BillingDas
         setIsPaying(false);
       } else if (res.checkoutUrl) {
         toast.info("Redirecting to payment gateway...");
-        window.location.href = res.checkoutUrl;
+        window.location.assign(res.checkoutUrl);
       } else {
         toast.error("Failed to initialize payment gateway.");
         setIsPaying(false);
       }
-    } catch (err: any) {
-      toast.error(err.message || "Failed to process payment.");
+    } catch (err) {
+      const error = err as Error;
+      toast.error(error.message || "Failed to process payment.");
       setIsPaying(false);
     }
   };
 
-  const handleDownloadInvoice = (purchase: any) => {
+  const handleDownloadInvoice = (purchase: BillingPurchase) => {
     const invoiceContent = `================================================
                POLAROIDKU RECEIPT
 ================================================
@@ -221,7 +230,7 @@ special memories!
 
       {eventsList.length === 0 ? (
         <Card className="border-border/40 bg-card/60 py-12 text-center text-xs text-muted-foreground border-dashed">
-          You don't have any events created yet. Go to your dashboard to create one!
+          You don&apos;t have any events created yet. Go to your dashboard to create one!
         </Card>
       ) : (
         <>
@@ -288,7 +297,7 @@ special memories!
           {/* Plan comparison */}
           {selectedEvent && (
             <div>
-              <h2 className="text-sm font-semibold text-foreground mb-4">Upgrade Plan for "{selectedEvent.name}"</h2>
+              <h2 className="text-sm font-semibold text-foreground mb-4">Upgrade Plan for &quot;{selectedEvent.name}&quot;</h2>
               <div className="grid gap-4 sm:grid-cols-3">
                 {PLANS.map((plan) => {
                   const isCurrent = plan.key === selectedEvent.plan;

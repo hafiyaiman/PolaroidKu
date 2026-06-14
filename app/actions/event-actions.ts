@@ -2,28 +2,9 @@
 
 import { db, events, wishes, users, logs } from "@/lib/db";
 import { auth } from "@/lib/auth/server";
-import { eq, and, count, desc } from "drizzle-orm";
+import { eq, count, desc } from "drizzle-orm";
 import { getPresignedDownloadUrl, getUserStorageSize } from "@/lib/storage/r2";
-import { redirect } from "next/navigation";
-
-// Helper to sanitize/slugify event names for IDs
-function slugify(text: string) {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9 -]/g, "") // remove invalid chars
-    .replace(/\s+/g, "-") // collapse whitespace and replace by -
-    .replace(/-+/g, "-") // collapse dashes
-    .trim();
-}
-
-// Plan config — single source of truth
-const PLAN_LIMITS = {
-  free:    { photoLimit: 50,   retentionDays: 30  },
-  premium: { photoLimit: 1000, retentionDays: 90  },
-  pro:     { photoLimit: 3000, retentionDays: 180 },
-} as const;
-
-type EventPlan = keyof typeof PLAN_LIMITS;
+import { type DbWish } from "@/types/db";
 
 import {
   createEvent as localCreateEvent,
@@ -123,8 +104,9 @@ export async function getRecentSubmissions() {
     const eventIds = userEvents.map((e) => e.id);
     const eventMap = new Map(userEvents.map((e) => [e.id, e.name]));
 
+
     // Fetch recent wishes across all user events
-    let allRecentWishes: any[] = [];
+    let allRecentWishes: DbWish[] = [];
     for (const eventId of eventIds) {
       const recentWishes = await db
         .select()
@@ -235,7 +217,8 @@ export async function updateProfile(data: { name: string }) {
     );
 
     return { success: true };
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as Error;
     console.error("Failed to update profile:", error);
     return { error: error.message || "Failed to update profile." };
   }

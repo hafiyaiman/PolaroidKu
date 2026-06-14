@@ -1,7 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { ShieldCheckIcon } from "@phosphor-icons/react/dist/ssr";
 import { getAllUsersForAdmin } from "../_actions/admin-actions";
-import { redirect } from "next/navigation";
 import { UsersTable } from "./_components/users-table";
 
 import { Button } from "@/components/ui/button";

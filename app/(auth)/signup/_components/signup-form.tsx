@@ -85,7 +85,7 @@ export function SignupForm({ className, ...props }: ComponentPropsWithoutRef<"di
         router.refresh();
       }
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       setError(err.message);
     },
   });
@@ -102,7 +102,7 @@ export function SignupForm({ className, ...props }: ComponentPropsWithoutRef<"di
       setMessage("Email verified. You can now sign in.");
       setStep("signup");
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       setError(err.message);
     },
   });
@@ -117,7 +117,7 @@ export function SignupForm({ className, ...props }: ComponentPropsWithoutRef<"di
       setMessage("Verification code sent. Check your inbox.");
       setCountdown(120);
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       setError(err.message);
     },
   });
@@ -139,7 +139,7 @@ export function SignupForm({ className, ...props }: ComponentPropsWithoutRef<"di
         window.location.href = data.url;
       }
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       setError(err.message);
     },
   });

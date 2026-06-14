@@ -1,9 +1,9 @@
 import { auth } from "@/lib/auth/server";
 import { redirect } from "next/navigation";
 import { getUserEvents } from "@/app/actions/event-actions";
-import { BillingDashboard } from "./_components/billing-dashboard";
-import { db, events, payments } from "@/lib/db";
-import { eq, and, ne, desc } from "drizzle-orm";
+import { BillingDashboard, type BillingPurchase } from "./_components/billing-dashboard";
+import { db, payments } from "@/lib/db";
+import { eq, desc } from "drizzle-orm";
 
 export default async function Page() {
   const { data: session } = await auth.getSession();
@@ -26,7 +26,7 @@ export default async function Page() {
     guestCount: e.guestCount,
   }));
 
-  let purchases: any[] = [];
+  let purchases: BillingPurchase[] = [];
   try {
     const realPayments = await db
       .select({

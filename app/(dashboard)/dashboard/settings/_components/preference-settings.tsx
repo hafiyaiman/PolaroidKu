@@ -98,7 +98,7 @@ export function PreferenceSettings({
               </Label>
               <Select
                 value={defaultTheme}
-                onValueChange={(val) => setDefaultTheme(val as any)}
+                onValueChange={(val) => setDefaultTheme(val as "dark" | "light" | "system")}
               >
                 <SelectTrigger className="w-full text-xs h-9 bg-background border border-border/60 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none text-foreground">
                   <SelectValue placeholder="Select Theme" />

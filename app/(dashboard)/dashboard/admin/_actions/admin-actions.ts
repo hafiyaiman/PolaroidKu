@@ -51,7 +51,8 @@ export async function getAllUsersForAdmin() {
     );
 
     return { success: true, users: usersWithStats };
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as Error;
     console.error("Failed to fetch admin users directory:", error);
     return { error: error.message || "Failed to load users." };
   }

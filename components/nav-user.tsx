@@ -47,7 +47,7 @@ export function NavUser({
       router.push("/login");
       router.refresh();
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error(err.message);
     },
   });

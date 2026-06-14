@@ -3,8 +3,6 @@
 import { db, events, payments } from "@/lib/db";
 import { auth } from "@/lib/auth/server";
 import { eq, and } from "drizzle-orm";
-import { logActivity } from "../../events/_actions/event-actions";
-import { revalidatePath } from "next/cache";
 
 import { headers } from "next/headers";
 
@@ -100,7 +98,8 @@ export async function upgradeEventAction(eventId: string, plan: "premium" | "pro
     });
 
     return { success: true, checkoutUrl: data.checkout_url };
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as Error;
     console.error("Failed to upgrade event:", error);
     return { error: error.message || "Failed to upgrade event." };
   }

@@ -33,6 +33,15 @@ export const events = pgTable("events", {
   expiresAt: timestamp("expires_at", { withTimezone: true }),  // set on creation; cron deletes after
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   pendingPurchaseId: text("pending_purchase_id"), // CHIP purchase ID awaiting confirmation
+  template: text("template").default("classic").notNull(),
+  coverImageKey: text("cover_image_key"),
+  preheader: text("preheader").default("Our Guestbook").notNull(),
+  subheader: text("subheader"),
+  buttonShape: text("button_shape").default("rounded").notNull(),
+  textColor: text("text_color").default("#0F172A").notNull(),
+  buttonColor: text("button_color").default("#0F172A").notNull(),
+  buttonTextColor: text("button_text_color").default("#FFFFFF").notNull(),
+  bgColor: text("bg_color").default("#FAF9F5").notNull(),
 }, (table) => [
   index("events_user_id_idx").on(table.userId),
   index("events_created_at_idx").on(table.createdAt),

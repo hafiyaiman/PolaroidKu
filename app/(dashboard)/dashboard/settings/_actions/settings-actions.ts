@@ -40,7 +40,8 @@ export async function getSettings() {
     }
 
     return { success: true, settings, user: session.user };
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as Error;
     console.error("Failed to get settings:", error);
     return { error: error.message || "Failed to load settings." };
   }
@@ -96,7 +97,8 @@ export async function updateProfileSettings(data: {
     await logActivity("update_profile", `Updated display name to "${data.name}" and avatar/phone.`);
     revalidatePath("/dashboard/settings");
     return { success: true };
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as Error;
     console.error("Failed to update profile settings:", error);
     return { error: error.message || "Failed to update profile." };
   }
@@ -126,7 +128,8 @@ export async function updateNotificationSettings(data: {
     await logActivity("update_notifications", "Updated email notification settings.");
     revalidatePath("/dashboard/settings");
     return { success: true };
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as Error;
     console.error("Failed to update notifications:", error);
     return { error: error.message || "Failed to update notifications." };
   }
@@ -157,7 +160,8 @@ export async function updatePreferences(data: {
     );
     revalidatePath("/dashboard/settings");
     return { success: true };
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as Error;
     console.error("Failed to update preferences:", error);
     return { error: error.message || "Failed to update preferences." };
   }
@@ -190,7 +194,8 @@ export async function changePasswordAction(data: {
 
     await logActivity("change_password", "Changed account password.");
     return { success: true };
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as Error;
     console.error("Failed to change password:", error);
     return { error: error.message || "Failed to change password." };
   }
@@ -209,7 +214,8 @@ export async function getSessionsAction() {
     }
 
     return { success: true, sessions };
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as Error;
     console.error("Failed to list sessions:", error);
     return { error: error.message || "Failed to list sessions." };
   }
@@ -229,7 +235,8 @@ export async function revokeSessionAction(tokenOrId: string) {
 
     await logActivity("revoke_session", `Revoked active session`);
     return { success: true };
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as Error;
     console.error("Failed to revoke session:", error);
     return { error: error.message || "Failed to revoke session." };
   }
@@ -249,7 +256,8 @@ export async function revokeOtherSessionsAction() {
 
     await logActivity("revoke_other_sessions", "Revoked all other active sessions.");
     return { success: true };
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as Error;
     console.error("Failed to revoke other sessions:", error);
     return { error: error.message || "Failed to revoke other sessions." };
   }
@@ -298,7 +306,8 @@ export async function getUsageMetrics() {
         expiredEvents,
       },
     };
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as Error;
     console.error("Failed to fetch usage metrics:", error);
     return { error: error.message || "Failed to load usage metrics." };
   }
@@ -322,7 +331,8 @@ export async function deleteAccountAction() {
     }
 
     return { success: true };
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as Error;
     console.error("Failed to delete account:", error);
     return { error: error.message || "Failed to delete account." };
   }

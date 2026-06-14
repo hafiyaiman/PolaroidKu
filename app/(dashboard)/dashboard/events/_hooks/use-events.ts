@@ -3,12 +3,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getUserEvents, createEvent } from "../_actions/event-actions";
 
-export function useEvents(initialEvents?: any[]) {
-  return useQuery({
+import { DashboardEvent } from "@/types/db";
+
+export function useEvents(initialEvents?: DashboardEvent[]) {
+  return useQuery<DashboardEvent[]>({
     queryKey: ["events"],
     queryFn: async () => {
       const res = await getUserEvents();
-      return res;
+      return res as DashboardEvent[];
     },
     initialData: initialEvents,
   });

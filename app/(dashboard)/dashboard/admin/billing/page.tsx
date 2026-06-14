@@ -3,7 +3,7 @@ import { eq, ne, desc, count } from "drizzle-orm";
 import { auth } from "@/lib/auth/server";
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CoinsIcon, ReceiptIcon, CheckCircleIcon, PlugsIcon, SparkleIcon } from "@phosphor-icons/react/dist/ssr";
 
@@ -116,7 +116,7 @@ export default async function Page() {
               </TableHeader>
               <TableBody>
                 {realTransactions.map((tx) => {
-                  let price = `RM ${(tx.amount / 100).toFixed(2)}`;
+                  const price = `RM ${(tx.amount / 100).toFixed(2)}`;
                   const displayId = tx.id.startsWith("pur_") ? tx.id.substring(4, 12).toUpperCase() : tx.id.substring(0, 8).toUpperCase();
                   return (
                     <TableRow key={tx.id} className="hover:bg-muted/10">

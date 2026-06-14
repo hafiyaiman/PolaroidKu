@@ -127,7 +127,7 @@ export default async function Page() {
                       <span className="text-muted-foreground">{sub.time}</span>
                     </div>
                     <p className="text-sm text-foreground/80 italic font-serif bg-muted/30 p-3 rounded-lg border border-border/30 line-clamp-3">
-                      "{sub.wish}"
+                      &quot;{sub.wish}&quot;
                     </p>
                   </CardContent>
                 </Card>

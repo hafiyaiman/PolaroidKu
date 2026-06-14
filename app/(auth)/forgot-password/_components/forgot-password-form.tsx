@@ -81,7 +81,7 @@ export function ForgotPasswordForm({ className, ...props }: ComponentPropsWithou
       setStep("reset");
       setCountdown(60);
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       setError(err.message);
     },
   });
@@ -103,7 +103,7 @@ export function ForgotPasswordForm({ className, ...props }: ComponentPropsWithou
       router.push("/login");
       router.refresh();
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       setError(err.message);
     },
   });
@@ -114,7 +114,7 @@ export function ForgotPasswordForm({ className, ...props }: ComponentPropsWithou
       setMessage("Verification code resent. Check your inbox.");
       setCountdown(60);
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       setError(err.message);
     },
   });

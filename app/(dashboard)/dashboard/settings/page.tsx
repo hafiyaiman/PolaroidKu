@@ -4,6 +4,7 @@ import { SettingsForm } from "./_components/settings-form";
 import { getSettings, getUsageMetrics, getSessionsAction } from "./_actions/settings-actions";
 import { db, events } from "@/lib/db";
 import { eq, and, ne } from "drizzle-orm";
+import { type BillingPurchase } from "./_components/billing-settings";
 
 export default async function Page() {
   const { data: session } = await auth.getSession();
@@ -30,7 +31,7 @@ export default async function Page() {
   const activeSessions = sessionsRes.success ? sessionsRes.sessions : [];
 
   // 4. Get Upgraded event purchases
-  let purchases: any[] = [];
+  let purchases: BillingPurchase[] = [];
   try {
     const upgradedEvents = await db
       .select()

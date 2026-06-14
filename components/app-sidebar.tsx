@@ -65,12 +65,9 @@ export function AppSidebar({
   user: SidebarUser;
 }) {
   const pathname = usePathname()
-  const [isAdmin, setIsAdmin] = React.useState(false)
-
-  React.useEffect(() => {
-    const roleIsAdmin = user?.role === "admin" || user?.email?.includes("admin")
-    setIsAdmin(roleIsAdmin)
-  }, [user])
+  const [isAdmin, setIsAdmin] = React.useState(
+    () => user?.role === "admin" || (user?.email?.includes("admin") ?? false)
+  );
 
   const userMenu: SidebarMenuItemType[] = [
     {

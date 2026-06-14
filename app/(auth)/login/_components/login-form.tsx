@@ -20,7 +20,6 @@ import { Camera } from "@phosphor-icons/react";
 import { authClient } from "@/lib/auth/client";
 import { LoginSchema } from "@/lib/auth/schemas";
 import { useMutation } from "@tanstack/react-query";
-import * as v from "valibot";
 import { loginWithEmail } from "@/app/(auth)/actions/auth-actions";
 
 export function LoginForm({
@@ -43,7 +42,7 @@ export function LoginForm({
       router.push("/dashboard");
       router.refresh();
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       setError(err.message);
     },
   });
@@ -65,7 +64,7 @@ export function LoginForm({
         window.location.href = data.url;
       }
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       setError(err.message);
     },
   });

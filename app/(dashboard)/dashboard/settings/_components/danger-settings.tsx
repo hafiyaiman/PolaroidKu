@@ -31,8 +31,9 @@ export function DangerSettings() {
           window.location.href = "/";
         }, 1500);
       }
-    } catch (err: any) {
-      toast.error(err.message || "Failed to delete account.");
+    } catch (err) {
+      const error = err as Error;
+      toast.error(error.message || "Failed to delete account.");
     }
   };
 

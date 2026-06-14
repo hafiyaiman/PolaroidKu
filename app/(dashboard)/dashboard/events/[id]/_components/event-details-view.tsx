@@ -23,7 +23,7 @@ import {
   TrashIcon,
   SpinnerGapIcon,
   WarningIcon,
-  CopyIcon,
+  CopyIcon
 } from "@phosphor-icons/react";
 import { usePageTitle } from "@/components/page-title-context";
 import {
@@ -32,12 +32,21 @@ import {
   useDeleteEvent,
   useDeleteSubmission,
 } from "../../_hooks/use-event-details";
-import type { Submission } from "../../_types";
+import { EventDesignerForm, type EventDesignerFormValues } from "@/components/event-designer-form";
+import { DbEvent } from "@/types/db";
+
+export interface EventSubmission {
+  id: string;
+  guestName: string;
+  wish: string;
+  imageUrl: string;
+  time: string;
+}
 
 interface EventDetailsViewProps {
   id: string;
-  initialEvent: any;
-  initialSubmissions: any[];
+  initialEvent: DbEvent & { coverImageUrl?: string };
+  initialSubmissions: EventSubmission[];
 }
 
 export function EventDetailsView({ id, initialEvent, initialSubmissions }: EventDetailsViewProps) {
@@ -53,28 +62,33 @@ export function EventDetailsView({ id, initialEvent, initialSubmissions }: Event
   const submissions = data?.submissions || initialSubmissions;
 
   const [qrUrl, setQrUrl] = React.useState("");
-  const [selectedSub, setSelectedSub] = React.useState<any | null>(null);
+  const [selectedSub, setSelectedSub] = React.useState<EventSubmission | null>(null);
   const [dialogOpen, setDialogOpen] = React.useState(false);
 
-  // Edit form states
+  const [activeTab, setActiveTab] = React.useState("guestbook");
+
+  // General settings form states
   const [editName, setEditName] = React.useState(event?.name || "");
   const [editDate, setEditDate] = React.useState(event?.date || "");
-  const [editWelcomeMessage, setEditWelcomeMessage] = React.useState(event?.welcomeMessage || "");
   const [editStatus, setEditStatus] = React.useState(event?.status || "Active");
   const [saveError, setSaveError] = React.useState("");
+
+  const [isSavingDesign, setIsSavingDesign] = React.useState(false);
 
   // Mutations
   const updateEvent = useUpdateEvent(id);
   const deleteEvent = useDeleteEvent();
   const deleteSubmission = useDeleteSubmission(id);
 
-  // Sync state with incoming event data
+  // Sync state with incoming event data for settings
   React.useEffect(() => {
     if (event) {
-      setEditName(event.name || "");
-      setEditDate(event.date || "");
-      setEditWelcomeMessage(event.welcomeMessage || "");
-      setEditStatus(event.status || "Active");
+      const timer = setTimeout(() => {
+        setEditName(event.name || "");
+        setEditDate(event.date || "");
+        setEditStatus(event.status || "Active");
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [event]);
 
@@ -109,6 +123,11 @@ export function EventDetailsView({ id, initialEvent, initialSubmissions }: Event
     }
   };
 
+  const hasChanges =
+    editName.trim() !== (event?.name || "") ||
+    editDate !== (event?.date || "") ||
+    editStatus !== (event?.status || "Active");
+
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaveError("");
@@ -122,7 +141,7 @@ export function EventDetailsView({ id, initialEvent, initialSubmissions }: Event
       const res = await updateEvent.mutateAsync({
         name: editName.trim(),
         date: editDate,
-        welcomeMessage: editWelcomeMessage.trim() || undefined,
+        welcomeMessage: undefined, // Welcoming message removed as requested
         status: editStatus as "Active" | "Archived" | "Draft",
       });
 
@@ -131,9 +150,41 @@ export function EventDetailsView({ id, initialEvent, initialSubmissions }: Event
       } else {
         toast.success("Event settings saved successfully!");
       }
-    } catch (err: any) {
-      console.error(err);
+    } catch (err) {
+      const error = err as Error;
+      console.error(error);
       setSaveError("Failed to update event settings.");
+    }
+  };
+
+  const handleSaveDesign = async (values: EventDesignerFormValues) => {
+    setIsSavingDesign(true);
+
+    try {
+      const res = await updateEvent.mutateAsync({
+        name: values.name,
+        template: values.template,
+        coverImageKey: values.coverImageKey ?? undefined,
+        preheader: values.preheader || "Our Guestbook",
+        subheader: values.subheader ?? undefined,
+        buttonShape: values.buttonShape,
+        textColor: values.textColor,
+        buttonColor: values.buttonColor,
+        buttonTextColor: values.buttonTextColor,
+        bgColor: values.bgColor,
+      });
+
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        toast.success("Visual customizer settings applied!");
+      }
+    } catch (err) {
+      const error = err as Error;
+      console.error(error);
+      toast.error("Failed to apply design changes.");
+    } finally {
+      setIsSavingDesign(false);
     }
   };
 
@@ -154,8 +205,9 @@ export function EventDetailsView({ id, initialEvent, initialSubmissions }: Event
         toast.success("Event deleted successfully!");
         router.push("/dashboard/events");
       }
-    } catch (err: any) {
-      console.error(err);
+    } catch (err) {
+      const error = err as Error;
+      console.error(error);
       toast.error("Failed to delete event.");
     }
   };
@@ -174,23 +226,21 @@ export function EventDetailsView({ id, initialEvent, initialSubmissions }: Event
         setDialogOpen(false);
         setSelectedSub(null);
       }
-    } catch (err: any) {
-      console.error(err);
+    } catch (err) {
+      const error = err as Error;
+      console.error(error);
       toast.error("Failed to delete submission.");
     }
   };
 
-  // Determine if settings form has unsaved modifications
-  const hasChanges =
-    editName.trim() !== (event?.name || "") ||
-    editDate !== (event?.date || "") ||
-    editWelcomeMessage.trim() !== (event?.welcomeMessage || "") ||
-    editStatus !== (event?.status || "Active");
+
 
   return (
-    <div className="flex flex-1 flex-col gap-6 p-4 md:p-6 bg-background/30 overflow-y-auto">
+    <div className={`flex flex-1 flex-col gap-4 bg-background/30 min-h-0 overflow-hidden ${
+      activeTab === "designer" ? "p-0 lg:p-6" : "p-4 md:p-6"
+    }`}>
       {/* Back and Title section */}
-      <div className="flex flex-col gap-3">
+      <div className={`flex flex-col gap-3 shrink-0 ${activeTab === "designer" ? "hidden lg:flex" : ""}`}>
         <Button variant="ghost" asChild className="self-start text-xs text-muted-foreground hover:text-foreground cursor-pointer -ml-2">
           <Link href="/dashboard/events" className="flex items-center gap-1">
             <ArrowLeftIcon className="size-3.5" />
@@ -228,20 +278,23 @@ export function EventDetailsView({ id, initialEvent, initialSubmissions }: Event
       </div>
 
       {/* Main Tab Container */}
-      <Tabs defaultValue="guestbook" className="w-full">
-        <TabsList className="bg-muted/40 border border-border/40 p-1 mb-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 flex flex-col overflow-hidden">
+        <TabsList className={`bg-muted/40 border border-border/40 p-1 mb-4 shrink-0 self-start ${activeTab === "designer" ? "hidden lg:flex" : ""}`}>
           <TabsTrigger value="guestbook" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground cursor-pointer text-xs">
             📖 Guestbook Wall
+          </TabsTrigger>
+          <TabsTrigger value="designer" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground cursor-pointer text-xs">
+            🎨 Visual Designer
           </TabsTrigger>
           <TabsTrigger value="settings" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground cursor-pointer text-xs">
             ⚙️ Settings
           </TabsTrigger>
         </TabsList>
 
-        {/* TAB 1: Guestbook Wall & QR side-by-side */}
-        <TabsContent value="guestbook" className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start mt-0">
+        {/* TAB 1: Guestbook Wall & QR side-by-side (Scrolling container) */}
+        <TabsContent value="guestbook" className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start mt-0 flex-1 overflow-y-auto pr-1">
           
-          {/* Left side: Polaroid Feed (2/3 width) */}
+          {/* Left side: Polaroid Feed */}
           <div className="lg:col-span-8 space-y-4">
             <div className="flex justify-between items-center pb-2 border-b border-border/20">
               <div>
@@ -267,7 +320,7 @@ export function EventDetailsView({ id, initialEvent, initialSubmissions }: Event
               </div>
             ) : (
               <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-                {submissions.map((sub: Submission) => (
+                {submissions.map((sub: EventSubmission) => (
                   <Dialog key={sub.id} open={dialogOpen && selectedSub?.id === sub.id} onOpenChange={(open) => {
                     setDialogOpen(open);
                     if (open) setSelectedSub(sub);
@@ -296,9 +349,8 @@ export function EventDetailsView({ id, initialEvent, initialSubmissions }: Event
                           </div>
                         </div>
 
-                        {/* Guest Wish Message Box */}
                         <div className="mt-4 w-full text-xs text-foreground/80 italic font-serif bg-muted/30 p-3 rounded-lg border border-border/30 line-clamp-3">
-                          "{sub.wish}"
+                          &quot;{sub.wish}&quot;
                         </div>
                         <div className="text-[10px] text-muted-foreground self-end mt-2">
                           {sub.time}
@@ -326,7 +378,7 @@ export function EventDetailsView({ id, initialEvent, initialSubmissions }: Event
                             </div>
                           </div>
                           <div className="w-full bg-muted/40 p-4 rounded-xl border border-border/40 italic font-serif text-sm text-foreground/95 text-center">
-                            "{selectedSub.wish}"
+                            &quot;{selectedSub.wish}&quot;
                           </div>
                           <div className="flex justify-between items-center w-full text-xs text-muted-foreground pt-2 border-t border-border/30">
                             <span>Uploaded {selectedSub.time}</span>
@@ -362,8 +414,8 @@ export function EventDetailsView({ id, initialEvent, initialSubmissions }: Event
             )}
           </div>
 
-          {/* Right side: QR & Copy Link sidebar (1/3 width) */}
-          <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-6">
+          {/* Right side: QR & Copy Link sidebar */}
+          <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-0">
             <Card className="bg-card/65 border-border/40 overflow-hidden">
               <CardHeader className="pb-3">
                 <CardTitle className="text-xs font-semibold text-foreground flex items-center gap-1.5 uppercase tracking-wider">
@@ -375,7 +427,6 @@ export function EventDetailsView({ id, initialEvent, initialSubmissions }: Event
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col items-center gap-4 py-2">
-                {/* Polaroid Frame for QR Code */}
                 <div className="bg-white p-3 pb-8 shadow-md rounded border border-neutral-100 flex flex-col items-center w-full max-w-[200px] transition-transform hover:scale-[1.01]">
                   <div className="bg-neutral-50 p-2 border border-neutral-200 aspect-square w-full flex items-center justify-center">
                     {qrUrl ? (
@@ -405,7 +456,6 @@ export function EventDetailsView({ id, initialEvent, initialSubmissions }: Event
               </CardFooter>
             </Card>
 
-            {/* Quick Status Info */}
             <Card className="bg-card/65 border-border/40 overflow-hidden">
               <CardHeader className="pb-3">
                 <CardTitle className="text-xs font-semibold text-foreground uppercase tracking-wider">
@@ -413,12 +463,6 @@ export function EventDetailsView({ id, initialEvent, initialSubmissions }: Event
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-xs">
-                <div className="flex items-center justify-between py-1 border-b border-border/20">
-                  <span className="text-muted-foreground font-medium">Welcome Message</span>
-                  <span className="text-[10px] bg-muted/65 px-2 py-0.5 rounded text-foreground italic max-w-[150px] truncate">
-                    &ldquo;{event.welcomeMessage}&rdquo;
-                  </span>
-                </div>
                 <div className="flex items-center justify-between py-1">
                   <span className="text-muted-foreground font-medium">Sign-in Limits</span>
                   <span className="font-semibold text-foreground">
@@ -430,8 +474,21 @@ export function EventDetailsView({ id, initialEvent, initialSubmissions }: Event
           </div>
         </TabsContent>
 
-        {/* TAB 2: Event Settings & Preferences */}
-        <TabsContent value="settings" className=" space-y-6 mt-0">
+        {/* TAB 2: Visual Customizer */}
+        <TabsContent value="designer" className="mt-0 flex-1 min-h-0 overflow-hidden flex flex-col pb-6">
+          <EventDesignerForm
+            eventId={id}
+            initialValues={event}
+            isNewEvent={false}
+            isPending={isSavingDesign}
+            onSubmit={handleSaveDesign}
+            submitButtonText="Save Changes"
+            onCancel={() => setActiveTab("guestbook")}
+          />
+        </TabsContent>
+
+        {/* TAB 3: Event Settings & Preferences (Scrolling container) */}
+        <TabsContent value="settings" className="space-y-6 mt-0 flex-1 overflow-y-auto pr-1">
           <Card className="bg-card/65 border-border/40 overflow-hidden">
             <form onSubmit={handleSaveSettings}>
               <CardHeader className="pb-3">
@@ -453,7 +510,7 @@ export function EventDetailsView({ id, initialEvent, initialSubmissions }: Event
 
                 <div className="grid gap-1.5">
                   <Label htmlFor="edit-name" className="text-xs font-semibold text-foreground">
-                    Event Name
+                    Event / Header Name
                   </Label>
                   <Input
                     id="edit-name"
@@ -475,20 +532,6 @@ export function EventDetailsView({ id, initialEvent, initialSubmissions }: Event
                     onChange={(e) => setEditDate(e.target.value)}
                     disabled={updateEvent.isPending}
                     className="bg-muted/30 border-border/60 focus-visible:ring-primary text-xs"
-                  />
-                </div>
-
-                <div className="grid gap-1.5">
-                  <Label htmlFor="edit-welcome" className="text-xs font-semibold text-foreground">
-                    Welcoming Message
-                  </Label>
-                  <textarea
-                    id="edit-welcome"
-                    value={editWelcomeMessage}
-                    onChange={(e) => setEditWelcomeMessage(e.target.value)}
-                    rows={4}
-                    disabled={updateEvent.isPending}
-                    className="flex min-h-[90px] w-full rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
                   />
                 </div>
 

@@ -15,24 +15,34 @@ export const users = neonAuthSchema.table("user", {
 
 /**
  * Plans:
- *   free     — 20 photos, 30-day retention
- *   premium  — 1,000 photos, 60-day retention (RM29)
+ *   free     — 50 photos, 30-day retention
+ *   premium  — 1,000 photos, 90-day retention (RM29)
  *   pro      — 3,000 photos, 180-day retention (RM59)
  */
 export const events = pgTable("events", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
   date: text("date").notNull(),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }), // Type match uuid
-  status: text("status").notNull().default("Active"), // 'Active' | 'Archived' | 'Draft'
-  welcomeMessage: text("welcome_message").default("Welcome to our Guestbook! Snap a photo and leave a wish."),
+  status: text("status").notNull().default("draft"), // 'draft' | 'published' | 'expired' | 'archived'
   plan: text("plan").notNull().default("free"),        // 'free' | 'premium' | 'pro'
   photoLimit: integer("photo_limit").notNull().default(50),
   photoCount: integer("photo_count").notNull().default(0),
+  storageUsedBytes: integer("storage_used_bytes").notNull().default(0),
   retentionDays: integer("retention_days").notNull().default(30),
   expiresAt: timestamp("expires_at", { withTimezone: true }),  // set on creation; cron deletes after
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   pendingPurchaseId: text("pending_purchase_id"), // CHIP purchase ID awaiting confirmation
+}, (table) => [
+  index("events_user_id_idx").on(table.userId),
+  index("events_created_at_idx").on(table.createdAt),
+]);
+
+// Theme and Customizer settings per Event
+export const eventSettings = pgTable("event_settings", {
+  eventId: text("event_id").primaryKey().references(() => events.id, { onDelete: "cascade" }),
   template: text("template").default("classic").notNull(),
   coverImageKey: text("cover_image_key"),
   preheader: text("preheader").default("Our Guestbook").notNull(),
@@ -42,30 +52,35 @@ export const events = pgTable("events", {
   buttonColor: text("button_color").default("#0F172A").notNull(),
   buttonTextColor: text("button_text_color").default("#FFFFFF").notNull(),
   bgColor: text("bg_color").default("#FAF9F5").notNull(),
-}, (table) => [
-  index("events_user_id_idx").on(table.userId),
-  index("events_created_at_idx").on(table.createdAt),
-]);
+});
 
-// Guest photo + wish submissions
-export const wishes = pgTable("wishes", {
+// Guest photo + signature submissions (replacing wishes)
+export const submissions = pgTable("submissions", {
   id: text("id").primaryKey(),
   eventId: text("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
-  guestName: text("guest_name").notNull(),
-  wish: text("wish").notNull(),
+  guestName: text("guest_name"),
+  message: text("message"), // renamed from wish
   imageKey: text("image_key").notNull(), // Cloudflare R2 object key
+  imageSize: integer("image_size"),
+  mimeType: text("mime_type"),
+  status: text("status").notNull().default("visible"), // 'visible' | 'hidden' | 'deleted'
+  reportCount: integer("report_count").default(0).notNull(),
+  hiddenReason: text("hidden_reason"),
+  hiddenAt: timestamp("hidden_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
-  index("wishes_event_id_idx").on(table.eventId),
-  index("wishes_created_at_idx").on(table.createdAt),
+  index("submissions_event_id_idx").on(table.eventId),
+  index("submissions_created_at_idx").on(table.createdAt),
 ]);
 
-// System activity/audit logs
-export const logs = pgTable("logs", {
+// System activity/audit logs (normalized table)
+export const logs = pgTable("audit_logs", {
   id: text("id").primaryKey(),
   userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }), // Type match uuid
-  action: text("action").notNull(), // e.g. "create_event", "upload_photo", "delete_event"
-  details: text("details"), // JSON string or text descriptions
+  entityType: text("entity_type"), // e.g. "event", "submission", "payment"
+  entityId: text("entity_id"),
+  action: text("action").notNull(), // e.g. "create", "update", "delete", "hide"
+  metadata: text("metadata"), // JSON string or text descriptions (renamed from details)
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index("logs_user_id_idx").on(table.userId),
@@ -76,8 +91,7 @@ export const logs = pgTable("logs", {
 export const userSettings = pgTable("user_settings", {
   userId: uuid("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }), // Type match uuid
   phoneNumber: text("phone_number"),
-  defaultEventVisibility: text("default_event_visibility").default("public").notNull(), // 'public' | 'private'
-  defaultTheme: text("default_theme").default("dark").notNull(), // 'dark' | 'light' | 'system'
+  theme: text("theme").default("dark").notNull(), // renamed from defaultTheme
   notifyOnUpload: boolean("notify_on_upload").default(true).notNull(),
   notifyOnLimit: boolean("notify_on_limit").default(true).notNull(),
   notifyOnExpiry: boolean("notify_on_expiry").default(true).notNull(),
@@ -96,6 +110,8 @@ export const payments = pgTable("payments", {
   currency: text("currency").notNull().default("MYR"),
   status: text("status").notNull().default("pending"), // 'pending' | 'paid' | 'failed'
   paymentGateway: text("payment_gateway").notNull().default("CHIP"),
+  photoLimitSnapshot: integer("photo_limit_snapshot"),
+  retentionDaysSnapshot: integer("retention_days_snapshot"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
@@ -104,4 +120,3 @@ export const payments = pgTable("payments", {
   index("payments_status_idx").on(table.status),
   index("payments_created_at_idx").on(table.createdAt),
 ]);
-

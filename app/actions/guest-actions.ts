@@ -1,45 +1,46 @@
 "use server";
 
-import { db, events, wishes } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { db, events, submissions, eventSettings } from "@/lib/db";
+import { eq, or } from "drizzle-orm";
 import { getPresignedUploadUrl } from "@/lib/storage/r2";
 import crypto from "crypto";
 
-export async function getPublicEventDetails(eventId: string) {
+export async function getPublicEventDetails(eventIdOrSlug: string) {
   try {
-    const [event] = await db
+    const [row] = await db
       .select({
         id: events.id,
         name: events.name,
         date: events.date,
         status: events.status,
-        welcomeMessage: events.welcomeMessage,
-        template: events.template,
-        coverImageKey: events.coverImageKey,
-        preheader: events.preheader,
-        subheader: events.subheader,
-        buttonShape: events.buttonShape,
-        textColor: events.textColor,
-        buttonColor: events.buttonColor,
-        buttonTextColor: events.buttonTextColor,
-        bgColor: events.bgColor,
+        slug: events.slug,
+        template: eventSettings.template,
+        coverImageKey: eventSettings.coverImageKey,
+        preheader: eventSettings.preheader,
+        subheader: eventSettings.subheader,
+        buttonShape: eventSettings.buttonShape,
+        textColor: eventSettings.textColor,
+        buttonColor: eventSettings.buttonColor,
+        buttonTextColor: eventSettings.buttonTextColor,
+        bgColor: eventSettings.bgColor,
       })
       .from(events)
-      .where(eq(events.id, eventId));
+      .leftJoin(eventSettings, eq(events.id, eventSettings.eventId))
+      .where(or(eq(events.id, eventIdOrSlug), eq(events.slug, eventIdOrSlug)));
 
-    if (!event) {
+    if (!row) {
       return { error: "Event not found." };
     }
 
-    if (event.status !== "Active") {
+    if (row.status !== "published") {
       return { error: "This event guestbook is not active." };
     }
 
     let coverImageUrl = "";
-    if (event.coverImageKey) {
+    if (row.coverImageKey) {
       try {
         const { getPresignedDownloadUrl } = await import("@/lib/storage/r2");
-        coverImageUrl = await getPresignedDownloadUrl(event.coverImageKey);
+        coverImageUrl = await getPresignedDownloadUrl(row.coverImageKey);
       } catch (err) {
         console.error("Failed to sign public cover image URL:", err);
       }
@@ -48,7 +49,7 @@ export async function getPublicEventDetails(eventId: string) {
     return { 
       success: true, 
       event: {
-        ...event,
+        ...row,
         coverImageUrl
       }
     };
@@ -78,7 +79,7 @@ export async function requestGuestUploadUrl(data: {
       return { error: "Event not found." };
     }
 
-    if (event.status !== "Active") {
+    if (event.status !== "published") {
       return { error: "This event guestbook is not active." };
     }
 
@@ -98,38 +99,62 @@ export async function requestGuestUploadUrl(data: {
   }
 }
 
-export async function submitGuestWish(data: {
+export async function submitGuestSubmission(data: {
   eventId: string;
-  guestName: string;
-  wish: string;
+  guestName?: string;
+  message?: string;
   imageKey: string;
+  imageSize?: number;
+  mimeType?: string;
 }) {
   try {
-    // 1. Basic validation
-    if (!data.guestName.trim()) {
-      return { error: "Guest name is required." };
-    }
-    if (!data.wish.trim()) {
-      return { error: "Wish is required." };
-    }
+    // Basic validation
     if (!data.imageKey) {
       return { error: "Photo upload is required." };
     }
 
-    // 2. Insert wish
-    const wishId = crypto.randomUUID();
-    await db.insert(wishes).values({
-      id: wishId,
-      eventId: data.eventId,
-      guestName: data.guestName.trim(),
-      wish: data.wish.trim(),
-      imageKey: data.imageKey,
+    const submissionId = crypto.randomUUID();
+
+    // Perform database transaction for atomic entry insertion and counter updates
+    await db.transaction(async (tx) => {
+      // 1. Insert guest submission record
+      await tx.insert(submissions).values({
+        id: submissionId,
+        eventId: data.eventId,
+        guestName: data.guestName ? data.guestName.trim() : null,
+        message: data.message ? data.message.trim() : null,
+        imageKey: data.imageKey,
+        imageSize: data.imageSize || null,
+        mimeType: data.mimeType || null,
+        status: "visible",
+      });
+
+      // 2. Load current counts
+      const [event] = await tx
+        .select({
+          photoCount: events.photoCount,
+          storageUsedBytes: events.storageUsedBytes,
+        })
+        .from(events)
+        .where(eq(events.id, data.eventId));
+
+      if (event) {
+        // 3. Update counter statistics
+        await tx
+          .update(events)
+          .set({
+            photoCount: event.photoCount + 1,
+            storageUsedBytes: event.storageUsedBytes + (data.imageSize || 0),
+            updatedAt: new Date(),
+          })
+          .where(eq(events.id, data.eventId));
+      }
     });
 
-    return { success: true, wishId };
+    return { success: true, submissionId };
   } catch (err) {
     const error = err as Error;
-    console.error("Failed to submit guestbook wish:", error);
+    console.error("Failed to submit guestbook entry:", error);
     return { error: "Failed to save your guestbook entry. Please try again." };
   }
 }

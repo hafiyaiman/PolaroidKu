@@ -37,6 +37,11 @@ export async function upgradeEventAction(eventId: string, plan: "premium" | "pro
     const baseUrl = `${protocol}://${host}`;
 
     const amount = plan === "premium" ? 2900 : 5900; // in cents (RM29 or RM59)
+    const PLAN_LIMITS = {
+      premium: { photoLimit: 1000, retentionDays: 90  },
+      pro:     { photoLimit: 3000, retentionDays: 180 },
+    } as const;
+    const limits = PLAN_LIMITS[plan];
 
     const payload = {
       brand_id: chipBrandKey,
@@ -95,6 +100,8 @@ export async function upgradeEventAction(eventId: string, plan: "premium" | "pro
       currency: "MYR",
       status: "pending",
       paymentGateway: "CHIP",
+      photoLimitSnapshot: limits.photoLimit,
+      retentionDaysSnapshot: limits.retentionDays,
     });
 
     return { success: true, checkoutUrl: data.checkout_url };

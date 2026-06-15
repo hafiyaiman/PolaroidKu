@@ -36,8 +36,7 @@ interface User {
 interface UserSettingsData {
   userId: string;
   phoneNumber: string | null;
-  defaultEventVisibility: "public" | "private";
-  defaultTheme: "dark" | "light" | "system";
+  theme: "dark" | "light" | "system";
   notifyOnUpload: boolean;
   notifyOnLimit: boolean;
   notifyOnExpiry: boolean;
@@ -183,8 +182,7 @@ export function SettingsForm({
 
           {activeTab === "preferences" && (
             <PreferenceSettings
-              defaultEventVisibility={initialSettings?.defaultEventVisibility ?? "public"}
-              defaultTheme={initialSettings?.defaultTheme ?? "dark"}
+              theme={initialSettings?.theme ?? "dark"}
             />
           )}
 

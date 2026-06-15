@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowRightIcon } from "@phosphor-icons/react/dist/ssr";
-import { db, users, events, wishes, payments, logs } from "@/lib/db";
+import { db, users, events, submissions, payments, logs } from "@/lib/db";
 import { eq, count, desc, sum, gt, and, ne } from "drizzle-orm";
 import { AdminStats } from "./_components/admin-stats";
 import { RevenueChart } from "./_components/revenue-chart";
@@ -13,8 +13,8 @@ import { AdminLogs } from "./_components/admin-logs";
 export default async function Page() {
   // 1. Query platform statistics dynamically from database
   const [totalUsersRes] = await db.select({ value: count() }).from(users);
-  const [activeEventsRes] = await db.select({ value: count() }).from(events).where(eq(events.status, "Active"));
-  const [totalPhotosRes] = await db.select({ value: count() }).from(wishes);
+  const [activeEventsRes] = await db.select({ value: count() }).from(events).where(eq(events.status, "published"));
+  const [totalPhotosRes] = await db.select({ value: count() }).from(submissions);
   const [revenueRes] = await db.select({ value: sum(payments.amount) }).from(payments).where(eq(payments.status, "paid"));
 
   const totalUsers = totalUsersRes?.value || 0;
@@ -70,7 +70,7 @@ export default async function Page() {
     .select({
       id: logs.id,
       action: logs.action,
-      details: logs.details,
+      metadata: logs.metadata,
       createdAt: logs.createdAt,
       userEmail: users.email,
     })
@@ -91,7 +91,7 @@ export default async function Page() {
       : "00:00:00";
     
     // Scrub internal architecture references for privacy
-    let details = log.details || "";
+    let details = log.metadata || "";
     details = details.replace(/r2:\/\//gi, "storage://");
     details = details.replace(/cloudflare r2/gi, "cloud storage");
     details = details.replace(/neon/gi, "database");

@@ -1,19 +1,14 @@
 "use server";
 
-import { db, events, wishes, logs } from "@/lib/db";
+import { db, events, submissions, eventSettings, logs } from "@/lib/db";
 import { auth } from "@/lib/auth/server";
 import { eq, and, count, desc } from "drizzle-orm";
 import { getPresignedDownloadUrl, deleteObjectFromR2, deleteEventFolderFromR2 } from "@/lib/storage/r2";
+import { formatTimeAgo } from "@/lib/format";
 
-
-// Helper to sanitize/slugify event names for IDs
+// Helper to sanitize/slugify event names for IDs/slugs
 function slugify(text: string) {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9 -]/g, "") // remove invalid chars
-    .replace(/\s+/g, "-") // collapse whitespace and replace by -
-    .replace(/-+/g, "-") // collapse dashes
-    .trim();
+  return text.toLowerCase().replace(/[^a-z0-9 -]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").trim();
 }
 
 // Plan config — single source of truth
@@ -26,7 +21,7 @@ const PLAN_LIMITS = {
 type EventPlan = keyof typeof PLAN_LIMITS;
 
 // Activity logger helper
-export async function logActivity(action: string, details?: string) {
+export async function logActivity(action: string, details?: string, entityType?: string, entityId?: string) {
   const { data: session } = await auth.getSession();
   const userId = session?.user?.id || null;
   const id = `log-${Math.random().toString(36).substring(2, 11)}`;
@@ -36,7 +31,9 @@ export async function logActivity(action: string, details?: string) {
       id,
       userId,
       action,
-      details,
+      entityType: entityType || null,
+      entityId: entityId || null,
+      metadata: details || null,
     });
   } catch (error) {
     console.error("Failed to write activity log:", error);
@@ -47,8 +44,8 @@ export async function createEvent(data: {
   id?: string;
   name: string;
   date: string;
-  welcomeMessage?: string;
   plan?: EventPlan;
+  status?: "draft" | "published" | "expired" | "archived";
   template?: string;
   coverImageKey?: string;
   preheader?: string;
@@ -72,34 +69,50 @@ export async function createEvent(data: {
 
   const baseSlug = slugify(data.name) || "event";
   const uniqueId = data.id || `${baseSlug}-${Math.random().toString(36).substring(2, 8)}`;
+  
+  // Ensure slug uniqueness by adding a small unique string
+  const slug = `${baseSlug}-${Math.random().toString(36).substring(2, 6)}`;
 
   try {
-    await db.insert(events).values({
-      id: uniqueId,
-      name: data.name,
-      date: data.date,
-      userId: session.user.id,
-      welcomeMessage: data.welcomeMessage || "Welcome to our Guestbook! Snap a photo and leave a wish.",
-      status: "Active",
-      plan,
-      photoLimit,
-      photoCount: 0,
-      retentionDays,
-      expiresAt,
-      template: data.template || "classic",
-      coverImageKey: data.coverImageKey || null,
-      preheader: data.preheader || "Our Guestbook",
-      subheader: data.subheader || null,
-      buttonShape: data.buttonShape || "rounded",
-      textColor: data.textColor || "#0F172A",
-      buttonColor: data.buttonColor || "#0F172A",
-      buttonTextColor: data.buttonTextColor || "#FFFFFF",
-      bgColor: data.bgColor || "#FAF9F5",
+    await db.transaction(async (tx) => {
+      // 1. Create base event record
+      await tx.insert(events).values({
+        id: uniqueId,
+        name: data.name,
+        slug: slug,
+        date: data.date,
+        userId: session.user.id,
+        status: data.status || "draft",
+        plan,
+        photoLimit,
+        photoCount: 0,
+        storageUsedBytes: 0,
+        retentionDays,
+        expiresAt,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      // 2. Create matching event settings customizer record
+      await tx.insert(eventSettings).values({
+        eventId: uniqueId,
+        template: data.template || "classic",
+        coverImageKey: data.coverImageKey || null,
+        preheader: data.preheader || "Our Guestbook",
+        subheader: data.subheader || null,
+        buttonShape: data.buttonShape || "rounded",
+        textColor: data.textColor || "#0F172A",
+        buttonColor: data.buttonColor || "#0F172A",
+        buttonTextColor: data.buttonTextColor || "#FFFFFF",
+        bgColor: data.bgColor || "#FAF9F5",
+      });
     });
 
     await logActivity(
-      "create_event",
-      `Created event "${data.name}" with ID "${uniqueId}" on plan "${plan}"`
+      "create",
+      `Created event "${data.name}" with ID "${uniqueId}" on plan "${plan}"`,
+      "event",
+      uniqueId
     );
 
     return { success: true, eventId: uniqueId };
@@ -117,24 +130,50 @@ export async function getUserEvents() {
   }
 
   try {
-    // Fetch user events
+    // Fetch user events joined with their settings
     const userEvents = await db
-      .select()
+      .select({
+        id: events.id,
+        name: events.name,
+        slug: events.slug,
+        date: events.date,
+        userId: events.userId,
+        status: events.status,
+        plan: events.plan,
+        photoLimit: events.photoLimit,
+        photoCount: events.photoCount,
+        storageUsedBytes: events.storageUsedBytes,
+        retentionDays: events.retentionDays,
+        expiresAt: events.expiresAt,
+        createdAt: events.createdAt,
+        updatedAt: events.updatedAt,
+        template: eventSettings.template,
+        coverImageKey: eventSettings.coverImageKey,
+        preheader: eventSettings.preheader,
+        subheader: eventSettings.subheader,
+        buttonShape: eventSettings.buttonShape,
+        textColor: eventSettings.textColor,
+        buttonColor: eventSettings.buttonColor,
+        buttonTextColor: eventSettings.buttonTextColor,
+        bgColor: eventSettings.bgColor,
+        pendingPurchaseId: events.pendingPurchaseId,
+      })
       .from(events)
+      .leftJoin(eventSettings, eq(events.id, eventSettings.eventId))
       .where(eq(events.userId, session.user.id))
       .orderBy(desc(events.createdAt));
 
-    // Get count of wishes per event
+    // Get count of submissions per event
     const eventsWithCount = await Promise.all(
       userEvents.map(async (event) => {
-        const [wishCountResult] = await db
+        const [submissionCountResult] = await db
           .select({ value: count() })
-          .from(wishes)
-          .where(eq(wishes.eventId, event.id));
+          .from(submissions)
+          .where(eq(submissions.eventId, event.id));
         
         return {
           ...event,
-          guestCount: wishCountResult?.value || 0,
+          guestCount: submissionCountResult?.value || 0,
         };
       })
     );
@@ -146,28 +185,7 @@ export async function getUserEvents() {
   }
 }
 
-// Utility to format timestamp to human-friendly text
-function formatTimeAgo(date: Date) {
-  const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-  
-  let interval = Math.floor(seconds / 31536000);
-  if (interval >= 1) return interval === 1 ? "1 year ago" : `${interval} years ago`;
-  
-  interval = Math.floor(seconds / 2592000);
-  if (interval >= 1) return interval === 1 ? "1 month ago" : `${interval} months ago`;
-  
-  interval = Math.floor(seconds / 86400);
-  if (interval >= 1) return interval === 1 ? "1 day ago" : `${interval} days ago`;
-  
-  interval = Math.floor(seconds / 3600);
-  if (interval >= 1) return interval === 1 ? "1 hour ago" : `${interval} hours ago`;
-  
-  interval = Math.floor(seconds / 60);
-  if (interval >= 1) return interval === 1 ? "1 minute ago" : `${interval} minutes ago`;
-  
-  if (seconds < 10) return "just now";
-  return `${Math.floor(seconds)} seconds ago`;
-}
+
 
 export async function getEventDetails(eventId: string) {
   const { data: session } = await auth.getSession();
@@ -177,29 +195,55 @@ export async function getEventDetails(eventId: string) {
 
   try {
     const [event] = await db
-      .select()
+      .select({
+        id: events.id,
+        name: events.name,
+        slug: events.slug,
+        date: events.date,
+        userId: events.userId,
+        status: events.status,
+        plan: events.plan,
+        photoLimit: events.photoLimit,
+        photoCount: events.photoCount,
+        storageUsedBytes: events.storageUsedBytes,
+        retentionDays: events.retentionDays,
+        expiresAt: events.expiresAt,
+        createdAt: events.createdAt,
+        updatedAt: events.updatedAt,
+        template: eventSettings.template,
+        coverImageKey: eventSettings.coverImageKey,
+        preheader: eventSettings.preheader,
+        subheader: eventSettings.subheader,
+        buttonShape: eventSettings.buttonShape,
+        textColor: eventSettings.textColor,
+        buttonColor: eventSettings.buttonColor,
+        buttonTextColor: eventSettings.buttonTextColor,
+        bgColor: eventSettings.bgColor,
+        pendingPurchaseId: events.pendingPurchaseId,
+      })
       .from(events)
+      .leftJoin(eventSettings, eq(events.id, eventSettings.eventId))
       .where(and(eq(events.id, eventId), eq(events.userId, session.user.id)));
 
     if (!event) {
       return { error: "Event not found" };
     }
 
-    const eventWishes = await db
+    const eventSubmissions = await db
       .select()
-      .from(wishes)
-      .where(eq(wishes.eventId, eventId))
-      .orderBy(desc(wishes.createdAt));
+      .from(submissions)
+      .where(eq(submissions.eventId, eventId))
+      .orderBy(desc(submissions.createdAt));
 
-    // Generate secure pre-signed download URLs for each wish photo
-    const wishesWithDownloadUrls = await Promise.all(
-      eventWishes.map(async (w) => {
+    // Generate secure pre-signed download URLs for each submission photo
+    const submissionsWithDownloadUrls = await Promise.all(
+      eventSubmissions.map(async (w) => {
         try {
           const downloadUrl = await getPresignedDownloadUrl(w.imageKey);
           return {
             id: w.id,
-            guestName: w.guestName,
-            wish: w.wish,
+            guestName: w.guestName || "Anonymous",
+            wish: w.message || "", // Return w.message mapped to wish for UI compatibility
             imageUrl: downloadUrl,
             time: formatTimeAgo(w.createdAt),
           };
@@ -207,8 +251,8 @@ export async function getEventDetails(eventId: string) {
           console.error(`Failed to sign download URL for key ${w.imageKey}:`, err);
           return {
             id: w.id,
-            guestName: w.guestName,
-            wish: w.wish,
+            guestName: w.guestName || "Anonymous",
+            wish: w.message || "",
             imageUrl: "",
             time: formatTimeAgo(w.createdAt),
           };
@@ -231,7 +275,7 @@ export async function getEventDetails(eventId: string) {
         ...event,
         coverImageUrl,
       },
-      submissions: wishesWithDownloadUrls,
+      submissions: submissionsWithDownloadUrls,
     };
   } catch (err) {
     const error = err as Error;
@@ -245,8 +289,7 @@ export async function updateEventDetails(
   data: {
     name?: string;
     date?: string;
-    welcomeMessage?: string;
-    status?: "Active" | "Archived" | "Draft";
+    status?: "draft" | "published" | "expired" | "archived";
     template?: string;
     coverImageKey?: string;
     preheader?: string;
@@ -273,24 +316,40 @@ export async function updateEventDetails(
       return { error: "Event not found or unauthorized." };
     }
 
-    const updateData: Partial<typeof events.$inferInsert> = {};
-    if (data.name !== undefined) updateData.name = data.name;
-    if (data.date !== undefined) updateData.date = data.date;
-    if (data.welcomeMessage !== undefined) updateData.welcomeMessage = data.welcomeMessage;
-    if (data.status !== undefined) updateData.status = data.status;
-    if (data.template !== undefined) updateData.template = data.template;
-    if (data.coverImageKey !== undefined) updateData.coverImageKey = data.coverImageKey;
-    if (data.preheader !== undefined) updateData.preheader = data.preheader;
-    if (data.subheader !== undefined) updateData.subheader = data.subheader;
-    if (data.buttonShape !== undefined) updateData.buttonShape = data.buttonShape;
-    if (data.textColor !== undefined) updateData.textColor = data.textColor;
-    if (data.buttonColor !== undefined) updateData.buttonColor = data.buttonColor;
-    if (data.buttonTextColor !== undefined) updateData.buttonTextColor = data.buttonTextColor;
-    if (data.bgColor !== undefined) updateData.bgColor = data.bgColor;
+    const updateEventData: Partial<typeof events.$inferInsert> = {};
+    if (data.name !== undefined) updateEventData.name = data.name;
+    if (data.date !== undefined) updateEventData.date = data.date;
+    if (data.status !== undefined) updateEventData.status = data.status;
+    updateEventData.updatedAt = new Date();
 
-    await db.update(events).set(updateData).where(eq(events.id, eventId));
+    const updateSettingsData: Partial<typeof eventSettings.$inferInsert> = {};
+    if (data.template !== undefined) updateSettingsData.template = data.template;
+    if (data.coverImageKey !== undefined) updateSettingsData.coverImageKey = data.coverImageKey;
+    if (data.preheader !== undefined) updateSettingsData.preheader = data.preheader;
+    if (data.subheader !== undefined) updateSettingsData.subheader = data.subheader;
+    if (data.buttonShape !== undefined) updateSettingsData.buttonShape = data.buttonShape;
+    if (data.textColor !== undefined) updateSettingsData.textColor = data.textColor;
+    if (data.buttonColor !== undefined) updateSettingsData.buttonColor = data.buttonColor;
+    if (data.buttonTextColor !== undefined) updateSettingsData.buttonTextColor = data.buttonTextColor;
+    if (data.bgColor !== undefined) updateSettingsData.bgColor = data.bgColor;
 
-    await logActivity("update_event", `Updated settings for event "${event.name}" (${eventId})`);
+    // Apply updates inside a transaction to keep event and event settings tables synced
+    await db.transaction(async (tx) => {
+      if (Object.keys(updateEventData).length > 0) {
+        await tx.update(events).set(updateEventData).where(eq(events.id, eventId));
+      }
+      if (Object.keys(updateSettingsData).length > 0) {
+        await tx
+          .insert(eventSettings)
+          .values({ eventId, ...updateSettingsData })
+          .onConflictDoUpdate({
+            target: eventSettings.eventId,
+            set: updateSettingsData,
+          });
+      }
+    });
+
+    await logActivity("update", `Updated settings for event "${event.name}" (${eventId})`, "event", eventId);
 
     return { success: true };
   } catch (err) {
@@ -361,10 +420,10 @@ export async function deleteEventAction(eventId: string) {
     // Delete folder from R2
     await deleteEventFolderFromR2(session.user.id, eventId);
 
-    // Delete from DB (cascade deletes wishes)
+    // Delete from DB (cascade deletes eventSettings and submissions)
     await db.delete(events).where(eq(events.id, eventId));
 
-    await logActivity("delete_event", `Deleted event "${event.name}" (${eventId})`);
+    await logActivity("delete", `Deleted event "${event.name}" (${eventId})`, "event", eventId);
 
     return { success: true };
   } catch (err) {
@@ -392,8 +451,8 @@ export async function deleteSubmissionAction(eventId: string, submissionId: stri
 
     const [submission] = await db
       .select()
-      .from(wishes)
-      .where(and(eq(wishes.id, submissionId), eq(wishes.eventId, eventId)));
+      .from(submissions)
+      .where(and(eq(submissions.id, submissionId), eq(submissions.eventId, eventId)));
 
     if (!submission) {
       return { error: "Submission not found." };
@@ -403,14 +462,28 @@ export async function deleteSubmissionAction(eventId: string, submissionId: stri
       await deleteObjectFromR2(submission.imageKey);
     }
 
-    await db.delete(wishes).where(eq(wishes.id, submissionId));
+    // Decrement counters inside a transaction
+    await db.transaction(async (tx) => {
+      await tx.delete(submissions).where(eq(submissions.id, submissionId));
 
-    const newCount = Math.max(0, event.photoCount - 1);
-    await db.update(events).set({ photoCount: newCount }).where(eq(events.id, eventId));
+      const newCount = Math.max(0, event.photoCount - 1);
+      const newStorage = Math.max(0, event.storageUsedBytes - (submission.imageSize || 0));
+
+      await tx
+        .update(events)
+        .set({
+          photoCount: newCount,
+          storageUsedBytes: newStorage,
+          updatedAt: new Date(),
+        })
+        .where(eq(events.id, eventId));
+    });
 
     await logActivity(
-      "delete_submission",
-      `Deleted submission by "${submission.guestName}" for event "${event.name}"`
+      "delete",
+      `Deleted submission by "${submission.guestName}" for event "${event.name}"`,
+      "submission",
+      submissionId
     );
 
     return { success: true };
@@ -420,4 +493,3 @@ export async function deleteSubmissionAction(eventId: string, submissionId: stri
     return { error: error.message || "Failed to delete submission." };
   }
 }
-

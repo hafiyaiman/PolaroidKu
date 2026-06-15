@@ -1,10 +1,11 @@
 "use server";
 
-import { db, events, wishes, users, logs } from "@/lib/db";
+import { db, events, submissions, users, logs } from "@/lib/db";
 import { auth } from "@/lib/auth/server";
 import { eq, count, desc } from "drizzle-orm";
 import { getPresignedDownloadUrl, getUserStorageSize } from "@/lib/storage/r2";
-import { type DbWish } from "@/types/db";
+import { type DbSubmission } from "@/types/db";
+import { formatTimeAgo, formatBytes } from "@/lib/format";
 
 import {
   createEvent as localCreateEvent,
@@ -42,7 +43,7 @@ export async function getDashboardStats() {
       .from(events)
       .where(eq(events.userId, session.user.id));
 
-    // 2. Count wishes from all user's events
+    // 2. Count submissions from all user's events
     const userEvents = await db
       .select({ id: events.id })
       .from(events)
@@ -54,8 +55,8 @@ export async function getDashboardStats() {
       for (const eventId of eventIds) {
         const [wishesCount] = await db
           .select({ value: count() })
-          .from(wishes)
-          .where(eq(wishes.eventId, eventId));
+          .from(submissions)
+          .where(eq(submissions.eventId, eventId));
         totalWishes += wishesCount?.value || 0;
       }
     }
@@ -104,20 +105,19 @@ export async function getRecentSubmissions() {
     const eventIds = userEvents.map((e) => e.id);
     const eventMap = new Map(userEvents.map((e) => [e.id, e.name]));
 
-
-    // Fetch recent wishes across all user events
-    let allRecentWishes: DbWish[] = [];
+    // Fetch recent submissions across all user events
+    let allRecentWishes: DbSubmission[] = [];
     for (const eventId of eventIds) {
       const recentWishes = await db
         .select()
-        .from(wishes)
-        .where(eq(wishes.eventId, eventId))
-        .orderBy(desc(wishes.createdAt))
+        .from(submissions)
+        .where(eq(submissions.eventId, eventId))
+        .orderBy(desc(submissions.createdAt))
         .limit(3);
       allRecentWishes.push(...recentWishes);
     }
 
-    // Sort combined wishes by creation date desc and limit to 3
+    // Sort combined submissions by creation date desc and limit to 3
     allRecentWishes.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     allRecentWishes = allRecentWishes.slice(0, 3);
 
@@ -128,7 +128,7 @@ export async function getRecentSubmissions() {
           id: w.id,
           eventName: eventMap.get(w.eventId) || "Unknown Event",
           guestName: w.guestName,
-          wish: w.wish,
+          wish: w.message, // Renamed from wish -> message
           imageUrl: downloadUrl,
           time: formatTimeAgo(w.createdAt),
         };
@@ -148,37 +148,7 @@ export async function getAllUsersForAdmin() {
   return localGetAllUsersForAdmin();
 }
 
-// Utility to format timestamp to human-friendly text
-function formatTimeAgo(date: Date) {
-  const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-  
-  let interval = Math.floor(seconds / 31536000);
-  if (interval >= 1) return interval === 1 ? "1 year ago" : `${interval} years ago`;
-  
-  interval = Math.floor(seconds / 2592000);
-  if (interval >= 1) return interval === 1 ? "1 month ago" : `${interval} months ago`;
-  
-  interval = Math.floor(seconds / 86400);
-  if (interval >= 1) return interval === 1 ? "1 day ago" : `${interval} days ago`;
-  
-  interval = Math.floor(seconds / 3600);
-  if (interval >= 1) return interval === 1 ? "1 hour ago" : `${interval} hours ago`;
-  
-  interval = Math.floor(seconds / 60);
-  if (interval >= 1) return interval === 1 ? "1 minute ago" : `${interval} minutes ago`;
-  
-  if (seconds < 10) return "just now";
-  return `${Math.floor(seconds)} seconds ago`;
-}
 
-// Utility to format raw bytes into human-friendly storage sizes
-function formatBytes(bytes: number) {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-}
 
 // Activity logger helper
 export async function logActivity(action: string, details?: string) {
@@ -191,7 +161,7 @@ export async function logActivity(action: string, details?: string) {
       id,
       userId,
       action,
-      details,
+      metadata: details, // Renamed details -> metadata
     });
   } catch (error) {
     console.error("Failed to write activity log:", error);
@@ -223,4 +193,3 @@ export async function updateProfile(data: { name: string }) {
     return { error: error.message || "Failed to update profile." };
   }
 }
-

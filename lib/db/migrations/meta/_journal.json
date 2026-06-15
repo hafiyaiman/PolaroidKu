@@ -8,6 +8,13 @@
       "when": 1781360167258,
       "tag": "0000_shocking_thundra",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781438650054,
+      "tag": "0001_refactor_schema",
+      "breakpoints": true
     }
   ]
 }

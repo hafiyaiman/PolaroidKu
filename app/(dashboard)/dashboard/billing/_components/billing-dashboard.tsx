@@ -236,7 +236,7 @@ special memories!
         <>
           {/* Selected Event Usage Card */}
           {selectedEvent && (
-            <Card className="border-border/40 bg-card/60">
+            <Card className="border-border/40 bg-card/60 min-h-fit">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div>
@@ -401,7 +401,7 @@ special memories!
                   </thead>
                   <tbody>
                     {purchases.map((tx) => (
-                      <tr key={tx.eventId} className="hover:bg-muted/10 border-b border-border/10 last:border-0">
+                      <tr key={tx.id} className="hover:bg-muted/10 border-b border-border/10 last:border-0">
                         <td className="p-3 font-mono text-foreground">{tx.id}</td>
                         <td className="p-3 text-muted-foreground">{tx.date}</td>
                         <td className="p-3 text-foreground font-semibold">{tx.eventName}</td>

@@ -5,7 +5,6 @@ export interface Event {
   name: string;
   date: string;
   userId: string;
-  welcomeMessage: string;
   status: string;
   plan: EventPlan;
   photoLimit: number;

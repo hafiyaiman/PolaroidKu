@@ -43,8 +43,7 @@ export function useUpdateEvent(id: string) {
     mutationFn: (data: {
       name?: string;
       date?: string;
-      welcomeMessage?: string;
-      status?: "Active" | "Archived" | "Draft";
+      status?: "draft" | "published" | "expired" | "archived";
       template?: string;
       coverImageKey?: string;
       preheader?: string;

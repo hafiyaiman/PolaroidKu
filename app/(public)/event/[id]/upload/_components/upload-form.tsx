@@ -1,12 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { requestGuestUploadUrl, submitGuestWish } from "@/app/actions/guest-actions";
+import { requestGuestUploadUrl, submitGuestSubmission } from "@/app/actions/guest-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { type DbEvent } from "@/types/db";
+
 import {
   CameraIcon,
   CheckCircleIcon,
@@ -20,23 +20,23 @@ import {
 } from "@phosphor-icons/react";
 import { GuestLandingTemplate } from "@/components/guest-landing-template";
 
-export type PublicEventDetails = Pick<
-  DbEvent,
-  | "id"
-  | "name"
-  | "date"
-  | "status"
-  | "welcomeMessage"
-  | "template"
-  | "coverImageKey"
-  | "preheader"
-  | "subheader"
-  | "buttonShape"
-  | "textColor"
-  | "buttonColor"
-  | "buttonTextColor"
-  | "bgColor"
-> & { coverImageUrl?: string };
+export type PublicEventDetails = {
+  id: string;
+  name: string;
+  date: string;
+  status: string;
+  slug: string;
+  template: string | null;
+  coverImageKey: string | null;
+  preheader: string | null;
+  subheader: string | null;
+  buttonShape: string | null;
+  textColor: string | null;
+  buttonColor: string | null;
+  buttonTextColor: string | null;
+  bgColor: string | null;
+  coverImageUrl?: string;
+};
 
 interface UploadFormProps {
   id: string;
@@ -184,12 +184,14 @@ export function UploadForm({ id, initialEvent }: UploadFormProps) {
 
       setUploadProgress(90);
 
-      // 3. Submit guestbook wish details to database
-      const wishRes = await submitGuestWish({
+      // 3. Submit guestbook submission details to database
+      const wishRes = await submitGuestSubmission({
         eventId: id,
         guestName: guestName.trim(),
-        wish: wish.trim(),
+        message: wish.trim(),
         imageKey: key!,
+        imageSize: file.size,
+        mimeType: file.type,
       });
 
       if (wishRes.error) {

@@ -110,13 +110,13 @@ export default async function Page() {
                       <div className="relative aspect-square w-full overflow-hidden bg-neutral-900 border border-neutral-200">
                         <img
                           src={sub.imageUrl}
-                          alt={sub.guestName}
+                          alt={sub.guestName || "Guest Photo"}
                           className="object-cover w-full h-full filter sepia-[0.1] contrast-[1.05]"
                         />
                       </div>
                       {/* Handwritten-style caption inside the polaroid */}
                       <div className="mt-4 text-center font-serif text-neutral-800 text-xs tracking-tight truncate w-full">
-                        💌 {sub.guestName}
+                        💌 {sub.guestName || "Anonymous"}
                       </div>
                     </div>
                   </div>

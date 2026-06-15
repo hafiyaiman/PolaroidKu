@@ -80,16 +80,16 @@ export function EventsListView({ initialEvents }: EventsListViewProps) {
               <CardHeader className="pb-3">
                 <div className="flex justify-between items-start">
                   <Badge
-                    variant={event.status === "Active" ? "default" : "secondary"}
+                    variant={event.status === "published" ? "default" : "secondary"}
                     className={
-                      event.status === "Active"
+                      event.status === "published"
                         ? "bg-primary/15 text-primary border border-primary/20 hover:bg-primary/20"
-                        : event.status === "Archived"
+                        : event.status === "archived"
                         ? "bg-muted text-muted-foreground border border-border"
                         : "bg-yellow-500/10 text-yellow-500 border border-yellow-500/20"
                     }
                   >
-                    {event.status}
+                    {event.status === "published" ? "Active" : event.status.charAt(0).toUpperCase() + event.status.slice(1)}
                   </Badge>
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
                     <CalendarIcon className="size-3.5" />
@@ -100,7 +100,7 @@ export function EventsListView({ initialEvents }: EventsListViewProps) {
                   {event.name}
                 </CardTitle>
                 <CardDescription className="text-xs text-muted-foreground line-clamp-2">
-                  &ldquo;{event.welcomeMessage}&rdquo;
+                  Plan: {event.plan.toUpperCase()} • Limit: {event.photoLimit} photos
                 </CardDescription>
               </CardHeader>
 
@@ -142,8 +142,9 @@ function ManageEventDialog({ event }: ManageEventDialogProps) {
   const [open, setOpen] = React.useState(false);
   const [name, setName] = React.useState(event.name);
   const [date, setDate] = React.useState(event.date);
-  const [welcomeMessage, setWelcomeMessage] = React.useState(event.welcomeMessage || "");
-  const [status, setStatus] = React.useState(event.status);
+  const [status, setStatus] = React.useState<"draft" | "published" | "expired" | "archived">(
+    event.status as "draft" | "published" | "expired" | "archived"
+  );
   const [error, setError] = React.useState("");
 
   const updateMutation = useUpdateEvent(event.id);
@@ -155,8 +156,7 @@ function ManageEventDialog({ event }: ManageEventDialogProps) {
       const timer = setTimeout(() => {
         setName(event.name);
         setDate(event.date);
-        setWelcomeMessage(event.welcomeMessage || "");
-        setStatus(event.status);
+        setStatus(event.status as "draft" | "published" | "expired" | "archived");
         setError("");
       }, 0);
       return () => clearTimeout(timer);
@@ -176,8 +176,7 @@ function ManageEventDialog({ event }: ManageEventDialogProps) {
       const res = await updateMutation.mutateAsync({
         name: name.trim(),
         date,
-        welcomeMessage: welcomeMessage.trim() || undefined,
-        status: status as "Active" | "Archived" | "Draft",
+        status,
       });
 
       if (res.error) {
@@ -221,7 +220,6 @@ function ManageEventDialog({ event }: ManageEventDialogProps) {
   const hasChanges =
     name.trim() !== event.name ||
     date !== event.date ||
-    welcomeMessage.trim() !== (event.welcomeMessage || "") ||
     status !== event.status;
 
   return (
@@ -273,33 +271,21 @@ function ManageEventDialog({ event }: ManageEventDialogProps) {
             />
           </div>
 
-          <div className="grid gap-1.5">
-            <Label htmlFor={`manage-welcome-${event.id}`} className="text-[11px] font-medium text-muted-foreground">
-              Welcoming Message
-            </Label>
-            <textarea
-              id={`manage-welcome-${event.id}`}
-              value={welcomeMessage}
-              onChange={(e) => setWelcomeMessage(e.target.value)}
-              rows={3}
-              disabled={updateMutation.isPending}
-              className="flex min-h-[60px] w-full rounded-md border border-border/60 bg-muted/30 px-3 py-1.5 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
-            />
-          </div>
+
 
           <div className="grid gap-1.5">
             <Label className="text-[11px] font-medium text-muted-foreground">Status</Label>
             <div className="flex gap-2">
-              {["Active", "Draft", "Archived"].map((s) => (
+              {["published", "draft", "archived"].map((s) => (
                 <Button
                   key={s}
                   type="button"
                   variant={status === s ? "default" : "outline"}
-                  onClick={() => setStatus(s)}
+                  onClick={() => setStatus(s as "draft" | "published" | "expired" | "archived")}
                   disabled={updateMutation.isPending}
-                  className="flex-1 text-[10px] h-7 cursor-pointer active:scale-95 transition-all p-0"
+                  className="flex-1 text-[10px] h-7 cursor-pointer active:scale-95 transition-all p-0 capitalize"
                 >
-                  {s}
+                  {s === "published" ? "Active" : s}
                 </Button>
               ))}
             </div>

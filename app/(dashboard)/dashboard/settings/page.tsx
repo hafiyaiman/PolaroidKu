@@ -17,8 +17,7 @@ export default async function Page() {
   const settings = settingsRes.success && settingsRes.settings
     ? {
         ...settingsRes.settings,
-        defaultEventVisibility: settingsRes.settings.defaultEventVisibility as "public" | "private",
-        defaultTheme: settingsRes.settings.defaultTheme as "dark" | "light" | "system",
+        theme: settingsRes.settings.theme as "dark" | "light" | "system",
       }
     : null;
 

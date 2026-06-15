@@ -25,8 +25,7 @@ export async function getSettings() {
       const newSettings = {
         userId,
         phoneNumber: "",
-        defaultEventVisibility: "public" as const,
-        defaultTheme: "dark" as const,
+        theme: "dark" as const,
         notifyOnUpload: true,
         notifyOnLimit: true,
         notifyOnExpiry: true,
@@ -77,8 +76,7 @@ export async function updateProfileSettings(data: {
       await db.insert(userSettings).values({
         userId,
         phoneNumber: data.phoneNumber || "",
-        defaultEventVisibility: "public",
-        defaultTheme: "dark",
+        theme: "dark",
         notifyOnUpload: true,
         notifyOnLimit: true,
         notifyOnExpiry: true,
@@ -136,8 +134,7 @@ export async function updateNotificationSettings(data: {
 }
 
 export async function updatePreferences(data: {
-  defaultEventVisibility?: "public" | "private";
-  defaultTheme?: "dark" | "light" | "system";
+  theme?: "dark" | "light" | "system";
 }) {
   const { data: session } = await auth.getSession();
   if (!session?.user) {
@@ -156,7 +153,7 @@ export async function updatePreferences(data: {
 
     await logActivity(
       "update_preferences",
-      `Updated default visibility to "${data.defaultEventVisibility}" and theme to "${data.defaultTheme}"`
+      `Updated default theme to "${data.theme}"`
     );
     revalidatePath("/dashboard/settings");
     return { success: true };
@@ -287,7 +284,7 @@ export async function getUsageMetrics() {
       totalPhotos += event.photoCount;
       const isExpired = event.expiresAt ? new Date(event.expiresAt) < now : false;
       
-      if (event.status === "Active" && !isExpired) {
+      if (event.status === "published" && !isExpired) {
         activeEvents++;
       } else {
         expiredEvents++;

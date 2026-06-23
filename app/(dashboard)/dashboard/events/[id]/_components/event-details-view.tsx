@@ -96,7 +96,7 @@ export function EventDetailsView({
     setActiveTab(val);
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", val);
-    router.replace(`${pathname}?${params.toString()}`);
+    window.history.replaceState(null, "", `${pathname}?${params.toString()}`);
   };
 
   const [builderOpen, setBuilderOpen] = React.useState(false);

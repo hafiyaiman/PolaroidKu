@@ -1,42 +1,56 @@
-import { db, events, users, payments } from "@/lib/db";
-import { eq, ne, desc, count } from "drizzle-orm";
-import { auth } from "@/lib/auth/server";
-import { redirect } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CoinsIcon, ReceiptIcon, CheckCircleIcon, PlugsIcon, SparkleIcon } from "@phosphor-icons/react/dist/ssr";
+"use client";
 
-export default async function Page() {
-  const { data: session } = await auth.getSession();
-  if (!session?.user || (session.user as any).role !== "admin") {
-    redirect("/dashboard");
+import { useAdminBilling } from "../_hooks/use-admin";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { CoinsIcon, ReceiptIcon, CheckCircleIcon, PlugsIcon, SparkleIcon, LockKeyIcon } from "@phosphor-icons/react";
+import Link from "next/link";
+import { Loader2 } from "lucide-react";
+
+export default function Page() {
+  const { data: billingData, isLoading, error } = useAdminBilling();
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6 bg-background/30">
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="size-8 animate-spin text-pink-500" />
+          <p className="text-xs text-muted-foreground font-medium animate-pulse">Loading ledger logs...</p>
+        </div>
+      </div>
+    );
   }
 
-  // 1. Fetch real transactions from payments table (joined with users)
-  const realTransactions = await db
-    .select({
-      id: payments.id,
-      eventName: payments.eventName,
-      plan: payments.plan,
-      amount: payments.amount,
-      status: payments.status,
-      createdAt: payments.createdAt,
-      userId: payments.userId,
-      userName: users.name,
-      userEmail: users.email,
-    })
-    .from(payments)
-    .leftJoin(users, eq(payments.userId, users.id))
-    .orderBy(desc(payments.createdAt));
+  if (error || !billingData) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6 bg-background/30">
+        <Card className="max-w-md w-full border-border/40 bg-card/60 text-center shadow-lg">
+          <CardHeader className="flex flex-col items-center gap-2 pt-6">
+            <div className="size-12 rounded-full bg-destructive/15 flex items-center justify-center text-destructive">
+              <LockKeyIcon className="size-6" />
+            </div>
+            <CardTitle className="text-lg font-bold text-foreground mt-2">
+              Super Admin Access Required
+            </CardTitle>
+            <CardDescription className="text-xs text-muted-foreground px-2">
+              You do not have the required permissions to view the global billing ledger. Access is restricted to Super Administrators only.
+            </CardDescription>
+          </CardHeader>
+          <CardFooter className="flex justify-center pb-6">
+            <Link href="/dashboard" passHref legacyBehavior>
+              <Button className="cursor-pointer text-xs">
+                Return to Dashboard
+              </Button>
+            </Link>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
 
-  // 2. Fetch conversion statistics
-  const [totalEventsRes] = await db.select({ value: count() }).from(events);
-  const [upgradedEventsRes] = await db.select({ value: count() }).from(events).where(ne(events.plan, "free"));
-
-  const totalEvents = totalEventsRes?.value || 0;
-  const upgradedEventsCount = upgradedEventsRes?.value || 0;
-  const conversionRate = totalEvents > 0 ? Math.round((upgradedEventsCount / totalEvents) * 100) : 0;
+  const { realTransactions, totalEvents, upgradedEventsCount, conversionRate } = billingData;
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-4 md:p-6 bg-background/30 overflow-y-auto">

@@ -1,110 +1,69 @@
+"use client";
+
 import Link from "next/link";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRightIcon } from "@phosphor-icons/react/dist/ssr";
-import { db, users, events, submissions, payments, logs } from "@/lib/db";
-import { eq, count, desc, sum, gt, and, ne } from "drizzle-orm";
+import { ArrowRightIcon, LockKeyIcon } from "@phosphor-icons/react";
 import { AdminStats } from "./_components/admin-stats";
 import { RevenueChart } from "./_components/revenue-chart";
 import { ArchitectureStatus } from "./_components/architecture-status";
 import { AdminLogs } from "./_components/admin-logs";
+import { useAdminOverview } from "./_hooks/use-admin";
+import { Loader2 } from "lucide-react";
 
-export default async function Page() {
-  // 1. Query platform statistics dynamically from database
-  const [totalUsersRes] = await db.select({ value: count() }).from(users);
-  const [activeEventsRes] = await db.select({ value: count() }).from(events).where(eq(events.status, "published"));
-  const [totalPhotosRes] = await db.select({ value: count() }).from(submissions);
-  const [revenueRes] = await db.select({ value: sum(payments.amount) }).from(payments).where(eq(payments.status, "paid"));
+export default function Page() {
+  const { data: overviewData, isLoading, error } = useAdminOverview();
 
-  const totalUsers = totalUsersRes?.value || 0;
-  const activeEvents = activeEventsRes?.value || 0;
-  const totalPhotos = totalPhotosRes?.value || 0;
-  const rawRevenue = Number(revenueRes?.value || 0);
-  const totalRevenue = `RM ${(rawRevenue / 100).toFixed(2)}`;
-
-  const [totalEventsRes] = await db.select({ value: count() }).from(events);
-  const [upgradedEventsRes] = await db.select({ value: count() }).from(events).where(ne(events.plan, "free"));
-  const totalEvents = totalEventsRes?.value || 0;
-  const upgradedEventsCount = upgradedEventsRes?.value || 0;
-  const conversionRate = totalEvents > 0 ? Math.round((upgradedEventsCount / totalEvents) * 100) : 0;
-
-  // 2. Fetch payments from the last 7 days to compile daily revenue trends
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-  const recentPayments = await db
-    .select({
-      amount: payments.amount,
-      createdAt: payments.createdAt,
-    })
-    .from(payments)
-    .where(and(gt(payments.createdAt, sevenDaysAgo), eq(payments.status, "paid")));
-
-  const dailyRevenueMap = new Map<string, number>();
-  // Initialize last 7 days with 0
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const key = d.toLocaleDateString("en-MY", { day: "numeric", month: "short" });
-    dailyRevenueMap.set(key, 0);
+  if (isLoading) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6 bg-background/30">
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="size-8 animate-spin text-pink-500" />
+          <p className="text-xs text-muted-foreground font-medium animate-pulse">Loading system overview...</p>
+        </div>
+      </div>
+    );
   }
 
-  recentPayments.forEach((p) => {
-    const key = new Date(p.createdAt).toLocaleDateString("en-MY", { day: "numeric", month: "short" });
-    if (dailyRevenueMap.has(key)) {
-      dailyRevenueMap.set(key, (dailyRevenueMap.get(key) || 0) + p.amount / 100);
-    }
-  });
+  if (error || !overviewData) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6 bg-background/30">
+        <Card className="max-w-md w-full border-border/40 bg-card/60 text-center shadow-lg">
+          <CardHeader className="flex flex-col items-center gap-2 pt-6">
+            <div className="size-12 rounded-full bg-destructive/15 flex items-center justify-center text-destructive">
+              <LockKeyIcon className="size-6" />
+            </div>
+            <CardTitle className="text-lg font-bold text-foreground mt-2">
+              Super Admin Access Required
+            </CardTitle>
+            <CardDescription className="text-xs text-muted-foreground px-2">
+              You do not have the required permissions to view the Super Admin Overview. Access is restricted to Super Administrators only.
+            </CardDescription>
+          </CardHeader>
+          <CardFooter className="flex justify-center pb-6">
+            <Link href="/dashboard" passHref legacyBehavior>
+              <Button className="cursor-pointer text-xs">
+                Return to Dashboard
+              </Button>
+            </Link>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
 
-  const chartData = Array.from(dailyRevenueMap.entries()).map(([label, amount]) => ({
-    label,
-    amount,
-  }));
-
-  // Find max amount to scale the SVG chart correctly
-  const maxVal = Math.max(...chartData.map(d => d.amount), 50);
-
-  // 3. Query real system activity log stream (scrubbing architecture details)
-  const realLogs = await db
-    .select({
-      id: logs.id,
-      action: logs.action,
-      metadata: logs.metadata,
-      createdAt: logs.createdAt,
-      userEmail: users.email,
-    })
-    .from(logs)
-    .leftJoin(users, eq(logs.userId, users.id))
-    .orderBy(desc(logs.createdAt))
-    .limit(4);
-
-  const formattedLogs = realLogs.map((log) => {
-    const actionLabel = (log.action || "SYSTEM").toUpperCase();
-    const timeString = log.createdAt
-      ? new Date(log.createdAt).toLocaleTimeString("en-MY", {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          hour12: false,
-        })
-      : "00:00:00";
-    
-    // Scrub internal architecture references for privacy
-    let details = log.metadata || "";
-    details = details.replace(/r2:\/\//gi, "storage://");
-    details = details.replace(/cloudflare r2/gi, "cloud storage");
-    details = details.replace(/neon/gi, "database");
-
-    return {
-      time: timeString,
-      action: actionLabel,
-      details,
-      user: log.userEmail || "SYSTEM",
-    };
-  });
-
-  const bucketName = process.env.R2_BUCKET_NAME || "polaroidku";
+  const {
+    totalUsers,
+    activeEvents,
+    totalPhotos,
+    totalRevenue,
+    conversionRate,
+    chartData,
+    maxVal,
+    formattedLogs,
+    bucketName,
+  } = overviewData;
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-4 md:p-6 bg-background/30 overflow-y-auto">

@@ -1,24 +1,22 @@
 "use client";
 
 import * as React from "react";
-import { requestGuestUploadUrl, submitGuestSubmission } from "@/app/actions/guest-actions";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-
 import {
-  CameraIcon,
-  CheckCircleIcon,
-  HeartIcon,
-  ArrowRightIcon,
-  ArrowLeftIcon,
-  CalendarIcon,
-  WarningIcon,
-  SparkleIcon,
-  SpinnerGapIcon
-} from "@phosphor-icons/react";
+  requestGuestUploadUrl,
+  submitGuestSubmission,
+} from "@/app/actions/guest-actions";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { CheckCircleIcon, HeartIcon } from "@phosphor-icons/react";
 import { GuestLandingTemplate } from "@/components/guest-landing-template";
+import { EditorShell } from "./editor/editor-shell";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export type PublicEventDetails = {
   id: string;
@@ -35,239 +33,234 @@ export type PublicEventDetails = {
   buttonColor: string | null;
   buttonTextColor: string | null;
   bgColor: string | null;
+  preheaderColor: string | null;
+  subheaderColor: string | null;
   coverImageUrl?: string;
+  showPublicGallery?: boolean | null;
 };
+
+interface BorderItem {
+  id: string;
+  name: string | null;
+  imageKey: string;
+  layoutType: string;
+  photoAlign?: string;
+  imageUrl: string;
+}
+
+interface Submission {
+  id: string;
+  guestName: string;
+  wish: string;
+  imageUrl: string;
+  time: string;
+}
 
 interface UploadFormProps {
   id: string;
   initialEvent: PublicEventDetails;
+  initialBorders: BorderItem[];
+  initialSubmissions: Submission[];
 }
 
-// Calculate high contrast text color (black or white) for buttons
-function getContrastColor(hexColor: string) {
-  if (!hexColor) return "#FFFFFF";
-  const color = hexColor.startsWith("#") ? hexColor.slice(1) : hexColor;
-  if (color.length !== 6) return "#FFFFFF";
-  
-  const r = parseInt(color.slice(0, 2), 16);
-  const g = parseInt(color.slice(2, 4), 16);
-  const b = parseInt(color.slice(4, 6), 16);
-  
-  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
-  return yiq >= 128 ? "#0F172A" : "#FFFFFF";
-}
-
-export function UploadForm({ id, initialEvent }: UploadFormProps) {
+export function UploadForm({
+  id,
+  initialEvent,
+  initialBorders = [],
+  initialSubmissions = [],
+}: UploadFormProps) {
   const [eventData] = React.useState<PublicEventDetails>(initialEvent);
-  
-  const [view, setView] = React.useState<"landing" | "form">("landing");
-  
-  const [guestName, setGuestName] = React.useState("");
-  const [wish, setWish] = React.useState("");
-  const [file, setFile] = React.useState<File | null>(null);
-  const [imagePreview, setImagePreview] = React.useState("");
-  
+  const [submissions, setSubmissions] =
+    React.useState<Submission[]>(initialSubmissions);
+  const [isUploadOpen, setIsUploadOpen] = React.useState(false);
+  const [isMobile, setIsMobile] = React.useState(false);
   const [isUploading, setIsUploading] = React.useState(false);
   const [uploadProgress, setUploadProgress] = React.useState(0);
   const [submitSuccess, setSubmitSuccess] = React.useState(false);
-  const [actionError, setActionError] = React.useState("");
+  const [successData, setSuccessData] = React.useState<{
+    name: string;
+    wish: string;
+    imageUrl: string;
+  } | null>(null);
 
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
-  // Helper to format button shapes based on database settings
-  const getButtonClass = () => {
-    const base = "w-full border-none font-semibold cursor-pointer active:scale-95 transition-all text-xs h-9.5 gap-1.5 shadow-md flex items-center justify-center";
-    switch (eventData.buttonShape) {
-      case "square":
-        return `${base} rounded-none`;
-      case "pill":
-        return `${base} rounded-full`;
-      case "rounded":
-      default:
-        return `${base} rounded-lg`;
-    }
-  };
+  const buttonShapeClass =
+    {
+      square: "rounded-none",
+      pill: "rounded-full",
+      rounded: "rounded-lg",
+    }[eventData.buttonShape ?? "rounded"] ?? "rounded-lg";
 
-  // Handle file select/capture
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      if (!selectedFile.type.startsWith("image/")) {
-        setActionError("Please upload an image file.");
-        return;
-      }
-      if (selectedFile.size > 10 * 1024 * 1024) {
-        setActionError("Image size must be smaller than 10MB.");
-        return;
-      }
-      setFile(selectedFile);
-      setActionError("");
-      
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(selectedFile);
-    }
-  };
+  const customButtonBg = eventData.buttonColor || undefined;
+  const customButtonText = eventData.buttonTextColor || undefined;
 
-  const triggerCamera = () => {
-    fileInputRef.current?.click();
-  };
-
-  // Submit flow
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!file) {
-      setActionError("Please take or select a photo.");
-      return;
-    }
-    if (!guestName.trim()) {
-      setActionError("Please sign your name.");
-      return;
-    }
-    if (!wish.trim()) {
-      setActionError("Please leave a short message/wish.");
-      return;
-    }
-
+  const handleEditorSubmit = async (editorData: {
+    file: Blob;
+    guestName: string;
+    message: string;
+  }) => {
     setIsUploading(true);
-    setActionError("");
-    setUploadProgress(10);
+    setUploadProgress(15);
 
     try {
-      // 1. Request presigned upload URL
+      const fileName = `composite-${Date.now()}.jpg`;
       const presignedRes = await requestGuestUploadUrl({
         eventId: id,
-        filename: file.name,
-        contentType: file.type,
+        filename: fileName,
+        contentType: "image/jpeg",
       });
 
       if (presignedRes.error) {
-        setActionError(presignedRes.error);
-        setIsUploading(false);
+        toast.error(presignedRes.error);
         return;
       }
 
       const { uploadUrl, key } = presignedRes;
       setUploadProgress(40);
 
-      // 2. Upload to R2 directly from browser
-      const uploadXhr = new XMLHttpRequest();
-      uploadXhr.open("PUT", uploadUrl!, true);
-      uploadXhr.setRequestHeader("Content-Type", file.type);
-
-      uploadXhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const percentComplete = Math.round((event.loaded / event.total) * 40);
-          setUploadProgress(40 + percentComplete); // goes up to 80%
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", uploadUrl!, true);
+      xhr.setRequestHeader("Content-Type", "image/jpeg");
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          setUploadProgress(40 + Math.round((e.loaded / e.total) * 40));
         }
       };
 
-      const uploadResult = await new Promise<{ success: boolean; error?: string }>((resolve) => {
-        uploadXhr.onload = () => {
-          if (uploadXhr.status === 200) {
-            resolve({ success: true });
-          } else {
-            resolve({ success: false, error: "Failed to upload image to storage server." });
-          }
-        };
-        uploadXhr.onerror = () => resolve({ success: false, error: "Network error during upload." });
-        uploadXhr.send(file);
+      const uploadOk = await new Promise<boolean>((res) => {
+        xhr.onload = () => res(xhr.status === 200);
+        xhr.onerror = () => res(false);
+        xhr.send(editorData.file);
       });
 
-      if (!uploadResult.success) {
-        setActionError(uploadResult.error || "Failed uploading photo.");
-        setIsUploading(false);
+      if (!uploadOk) {
+        toast.error("Upload failed. Please try again.");
         return;
       }
 
       setUploadProgress(90);
 
-      // 3. Submit guestbook submission details to database
-      const wishRes = await submitGuestSubmission({
+      const submitRes = await submitGuestSubmission({
         eventId: id,
-        guestName: guestName.trim(),
-        message: wish.trim(),
+        guestName: editorData.guestName,
+        message: editorData.message,
         imageKey: key!,
-        imageSize: file.size,
-        mimeType: file.type,
+        imageSize: editorData.file.size,
+        mimeType: "image/jpeg",
       });
 
-      if (wishRes.error) {
-        setActionError(wishRes.error);
-        setIsUploading(false);
+      if (submitRes.error) {
+        toast.error(submitRes.error);
         return;
       }
 
       setUploadProgress(100);
+
+      const previewUrl = URL.createObjectURL(editorData.file);
+      setSuccessData({
+        name: editorData.guestName,
+        wish: editorData.message,
+        imageUrl: previewUrl,
+      });
+      setSubmissions((prev) => [
+        {
+          id: submitRes.submissionId || crypto.randomUUID(),
+          guestName: editorData.guestName,
+          wish: editorData.message,
+          imageUrl: previewUrl,
+          time: "Just now",
+        },
+        ...prev,
+      ]);
+
+      toast.success("Polaroid posted to the memory wall!");
       setSubmitSuccess(true);
+      setIsUploadOpen(false);
     } catch (err) {
-      const error = err as Error;
-      console.error(error);
-      setActionError("An unexpected error occurred. Please try again.");
+      console.error(err);
+      toast.error("An unexpected error occurred. Please try again.");
     } finally {
       setIsUploading(false);
+      setUploadProgress(0);
     }
   };
 
-  const customButtonBg = eventData.buttonColor || undefined;
-  const customButtonText = eventData.buttonTextColor || (eventData.buttonColor ? getContrastColor(eventData.buttonColor) : undefined);
-
-  if (submitSuccess) {
+  // ── Success screen ──────────────────────────────────────────────────────────
+  if (submitSuccess && successData) {
     return (
-      <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-6 text-center select-none">
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center select-none">
         <div className="relative mb-6">
           <div className="size-20 bg-primary/10 border border-primary/20 rounded-full flex items-center justify-center text-primary">
             <CheckCircleIcon weight="fill" className="size-10" />
           </div>
-          <SparkleIcon className="size-6 text-yellow-400 absolute -top-1 -right-1 animate-pulse" />
-          <HeartIcon weight="fill" className="size-5 text-primary absolute -bottom-1 -left-1 animate-pulse" />
+          <span className="text-xl absolute -top-1 -right-1">✨</span>
+          <HeartIcon
+            weight="fill"
+            className="size-5 text-primary absolute -bottom-1 -left-1 animate-pulse"
+          />
         </div>
+
         <h1 className="text-2xl font-bold tracking-tight">Memory Captured!</h1>
-        <p className="text-sm text-muted-foreground mt-2 max-w-xs mx-auto">
-          Thank you so much! Your polaroid and warm wishes have been signed and pinned onto the event live wall.
+        <p className="text-sm text-muted-foreground mt-2 max-w-xs">
+          Your polaroid and warm wishes have been pinned to the live wall. 💖
         </p>
 
-        {/* Polaroid frame preview of the submission */}
-        <div className="mt-8 bg-white p-3 pb-8 shadow-2xl rounded border border-neutral-150 flex flex-col items-center w-full max-w-[220px] text-slate-800 rotate-2">
-          <div className="relative aspect-square w-full overflow-hidden bg-neutral-900 border">
-            {imagePreview && (
-              <img src={imagePreview} alt="Polaroid Memory" className="object-cover w-full h-full" />
-            )}
-          </div>
-          <div className="mt-4 text-center font-serif text-xs font-semibold max-w-full truncate">
-            ✍️ {guestName}
+        <div className="mt-8 bg-white shadow-2xl rounded w-full max-w-[220px] rotate-2">
+          <div className="w-full overflow-hidden">
+            <img
+              src={successData.imageUrl}
+              alt="Your polaroid"
+              className="object-cover w-full h-full"
+            />
           </div>
         </div>
 
-        <div className="w-full max-w-[220px] mx-auto mt-8">
+        <div className="w-full max-w-[220px] mt-8">
           <Button
             onClick={() => {
-              setFile(null);
-              setImagePreview("");
-              setWish("");
               setSubmitSuccess(false);
-              setUploadProgress(0);
-              setView("landing"); // Return back to custom landing template
+              setSuccessData(null);
             }}
-            className={getButtonClass()}
-            style={{
-              backgroundColor: customButtonBg,
-              color: customButtonText
-            }}
+            className={cn(
+              "w-full font-semibold cursor-pointer active:scale-95 transition-all text-xs h-10",
+              buttonShapeClass,
+            )}
+            style={{ backgroundColor: customButtonBg, color: customButtonText }}
           >
-            Submit Another Polaroid
+            Back to Welcome
           </Button>
         </div>
       </div>
     );
   }
 
-  // Render Visual Customizer Template landing view
-  if (view === "landing") {
-    return (
-      <div className="w-full min-h-screen h-screen flex flex-col overflow-hidden bg-background">
+  // ── Editor element ──────────────────────────────────────────────────────────
+  const renderEditor = () => (
+    <EditorShell
+      eventId={id}
+      borders={initialBorders}
+      customButtonBg={customButtonBg}
+      customButtonText={customButtonText}
+      onSubmit={handleEditorSubmit}
+      onClose={() => setIsUploadOpen(false)}
+      isUploading={isUploading}
+      uploadProgress={uploadProgress}
+    />
+  );
+
+  return (
+    <div
+      className="w-full min-h-screen flex flex-col overflow-y-auto bg-background scroll-smooth"
+      style={{ backgroundColor: eventData.bgColor || undefined }}
+    >
+      {/* Landing hero */}
+      <div className="w-full h-screen shrink-0">
         <GuestLandingTemplate
           template={eventData.template || "classic"}
           preheader={eventData.preheader || "Our Guestbook"}
@@ -279,186 +272,87 @@ export function UploadForm({ id, initialEvent }: UploadFormProps) {
           buttonColor={eventData.buttonColor}
           buttonTextColor={eventData.buttonTextColor}
           bgColor={eventData.bgColor}
-          onAction={() => setView("form")}
+          preheaderColor={eventData.preheaderColor}
+          subheaderColor={eventData.subheaderColor}
+          onAction={() => setIsUploadOpen(true)}
           isPreview={false}
         />
       </div>
-    );
-  }
 
-  // Render Upload Form View
-  return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-start py-8 px-4 overflow-y-auto w-full select-none">
-      
-      {/* Back button to landing */}
-      <div className="w-full max-w-md flex justify-start mb-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setView("landing")}
-          className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer pl-0"
-        >
-          <ArrowLeftIcon className="size-3.5" />
-          Back to Welcome Page
-        </Button>
-      </div>
+      {/* Memory Wall grid — visible only when admin allows */}
+      {eventData.showPublicGallery && submissions.length > 0 && (
+        <div className="w-full max-w-4xl mx-auto px-4 py-12 md:py-16 shrink-0 border-t border-border/20">
+          <div className="text-center mb-8 flex flex-col items-center gap-2">
+            <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-[10px] uppercase font-bold tracking-wider">
+              <HeartIcon weight="fill" className="size-3" />
+              Memory Wall
+            </div>
+            <h2
+              className="text-xl md:text-2xl font-bold tracking-tight font-serif"
+              style={{ color: eventData.textColor || undefined }}
+            >
+              Memories &amp; Wishes
+            </h2>
+            <p className="text-[11px] text-muted-foreground max-w-sm">
+              Heartfelt snaps from our sweet guests.
+            </p>
+          </div>
 
-      {/* Event Banner */}
-      <div className="w-full max-w-md text-center mb-6 px-2">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 mb-3 text-primary text-[10px] uppercase font-bold tracking-wider">
-          <SparkleIcon weight="fill" className="size-3" />
-          Polaroid Guestbook
-        </div>
-        <h1 className="text-xl font-bold tracking-tight text-foreground">{eventData.name}</h1>
-        <p className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1">
-          <CalendarIcon className="size-3.5" />
-          Scheduled for {eventData.date}
-        </p>
-      </div>
-
-      <Card className="w-full max-w-md bg-card border-border/60 backdrop-blur-md shadow-2xl relative overflow-hidden">
-        <div className="h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
-        
-        <CardHeader className="pb-4">
-          <CardTitle className="text-sm font-semibold text-foreground">Upload Media</CardTitle>
-        </CardHeader>
-
-        <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-5">
-            {/* Action Messages */}
-            {actionError && (
-              <div className="p-3 bg-destructive/15 border border-destructive/20 text-destructive text-xs rounded-xl flex items-center gap-1.5">
-                <WarningIcon className="size-4 shrink-0" />
-                <span>{actionError}</span>
-              </div>
-            )}
-
-            {/* Photo Capture Section */}
-            <div className="flex flex-col items-center gap-4">
-              <Label className="text-xs font-semibold text-foreground self-start">
-                Snap or Upload a Guest Photo
-              </Label>
-              
-              {/* Camera Frame */}
-              <div 
-                onClick={!isUploading ? triggerCamera : undefined}
-                className={`relative aspect-square w-full max-w-[240px] rounded-2xl border-2 border-dashed ${
-                  imagePreview ? "border-solid border-border bg-white p-3 pb-8" : "border-border/60 bg-muted/20 hover:bg-muted/40"
-                } flex flex-col items-center justify-center cursor-pointer transition-all group overflow-hidden`}
+          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4">
+            {submissions.map((sub) => (
+              <div
+                key={sub.id}
+                className="group relative overflow-hidden shadow-md"
               >
-                {imagePreview ? (
-                  // Custom Polaroid Preview Frame
-                  <div className="w-full h-full flex flex-col items-center bg-white text-slate-800 justify-between">
-                    <div className="relative aspect-square w-full overflow-hidden bg-neutral-900 border">
-                      <img 
-                        src={imagePreview} 
-                        alt="Preview" 
-                        className="object-cover w-full h-full filter sepia-[0.05]" 
-                      />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-semibold">
-                        <CameraIcon className="size-5 mr-1" /> Retake Photo
-                      </div>
-                    </div>
-                    <div className="mt-3 text-center font-serif text-[11px] font-bold tracking-tight text-slate-600 truncate max-w-full">
-                      ✍️ {guestName || "Your Signature"}
-                    </div>
-                  </div>
-                ) : (
-                  // Capture Trigger Placeholder
-                  <div className="flex flex-col items-center gap-2.5 text-center px-4 py-8">
-                    <div className="p-4 rounded-full bg-muted border border-border text-primary group-hover:scale-105 transition-transform duration-300">
-                      <CameraIcon className="size-8" />
-                    </div>
-                    <span className="text-xs font-medium text-foreground">Tap to Snap Polaroid</span>
-                    <span className="text-[10px] text-muted-foreground">Opens phone camera or file browser</span>
-                  </div>
-                )}
-
-                {/* Hidden File Input */}
-                <input
-                  type="file"
-                  id="guest-photo"
-                  ref={fileInputRef}
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                  onChange={handleFileChange}
-                  disabled={isUploading}
-                />
-              </div>
-            </div>
-
-            {/* Guest Signature Name */}
-            <div className="grid gap-1.5">
-              <Label htmlFor="guest-name" className="text-xs font-semibold text-foreground">
-                Your Name / Signature
-              </Label>
-              <Input
-                id="guest-name"
-                value={guestName}
-                onChange={(e) => setGuestName(e.target.value)}
-                placeholder="e.g. Uncle George, Chloe & Ryan"
-                disabled={isUploading}
-                maxLength={50}
-                required
-                className="bg-muted/30 border-border/60 focus-visible:ring-primary focus-visible:ring-offset-0 text-foreground text-xs h-9 placeholder:text-muted-foreground"
-              />
-            </div>
-
-            {/* Guest Wish Message */}
-            <div className="grid gap-1.5">
-              <Label htmlFor="guest-wish" className="text-xs font-semibold text-foreground">
-                Your Wedding Message / Wish
-              </Label>
-              <textarea
-                id="guest-wish"
-                value={wish}
-                onChange={(e) => setWish(e.target.value)}
-                placeholder="Write your wishes here. It will be printed under your polaroid on the wedding wall!"
-                disabled={isUploading}
-                maxLength={500}
-                required
-                rows={3}
-                className="flex min-h-[70px] w-full rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
-              />
-            </div>
-
-            {/* Upload Progress Bar */}
-            {isUploading && (
-              <div className="space-y-1.5 pt-2">
-                <div className="flex justify-between items-center text-[10px] text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <SpinnerGapIcon className="size-3.5 animate-spin text-primary" />
-                    {uploadProgress < 40 ? "Initializing..." : uploadProgress < 85 ? "Uploading Polaroid..." : "Hanging on wall..."}
-                  </span>
-                  <span>{uploadProgress}%</span>
-                </div>
-                <div className="h-1 bg-muted rounded-full overflow-hidden w-full">
-                  <div 
-                    className="h-full bg-primary transition-all duration-300" 
-                    style={{ width: `${uploadProgress}%` }}
+                <div className="overflow-hidden bg-neutral-900">
+                  <img
+                    src={sub.imageUrl}
+                    alt={sub.guestName}
+                    className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
                   />
                 </div>
+                <div className="px-2 py-2 border-t border-border/30 bg-background/80 backdrop-blur-sm">
+                  <p className="text-[10px] font-semibold truncate text-foreground">
+                    {sub.guestName}
+                  </p>
+                  {sub.wish && (
+                    <p className="text-[9px] text-muted-foreground truncate mt-0.5">
+                      {sub.wish}
+                    </p>
+                  )}
+                  <p className="text-[8px] text-muted-foreground/60 mt-0.5">
+                    {sub.time}
+                  </p>
+                </div>
               </div>
-            )}
-          </CardContent>
+            ))}
+          </div>
+        </div>
+      )}
 
-          <CardFooter className="border-t border-border/40 pt-4 pb-5">
-            <button
-              type="submit"
-              disabled={isUploading || !file}
-              className={getButtonClass()}
-              style={{
-                backgroundColor: customButtonBg,
-                color: customButtonText
-              }}
-            >
-              Upload Media
-              <ArrowRightIcon className="size-3.5" />
-            </button>
-          </CardFooter>
-        </form>
-      </Card>
+      {/* Mobile: true full-screen overlay (like Instagram camera) */}
+      {isMobile ? (
+        isUploadOpen ? (
+          <div
+            className="fixed inset-0 z-50 bg-black flex flex-col"
+            style={{ height: "100dvh" }}
+          >
+            {renderEditor()}
+          </div>
+        ) : null
+      ) : (
+        /* Desktop: centered dialog */
+        <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
+          <DialogContent className="sm:max-w-[420px] bg-zinc-950 border-zinc-900 p-0 overflow-hidden flex flex-col max-h-[95dvh] dark text-zinc-100">
+            <DialogHeader className="sr-only">
+              <DialogTitle>Sign the Polaroid Guestbook</DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-hidden min-h-0">
+              {renderEditor()}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

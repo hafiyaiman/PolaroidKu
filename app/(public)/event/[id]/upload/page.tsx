@@ -20,5 +20,12 @@ export default async function GuestUploadPage({ params }: { params: Promise<{ id
     );
   }
 
-  return <UploadForm id={id} initialEvent={res.event} />;
+  return (
+    <UploadForm
+      id={id}
+      initialEvent={res.event}
+      initialBorders={res.borders || []}
+      initialSubmissions={res.submissions || []}
+    />
+  );
 }

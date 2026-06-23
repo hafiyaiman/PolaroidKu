@@ -12,11 +12,16 @@ interface QrSidebarProps {
   photoLimit: number;
   publicUploadUrl: string;
   onCopyLink: () => void;
+  isMobileDialog?: boolean;
 }
 
-export function QrSidebar({ id, qrUrl, photoCount, photoLimit, onCopyLink }: QrSidebarProps) {
+export function QrSidebar({ id, qrUrl, photoCount, photoLimit, onCopyLink, isMobileDialog = false }: QrSidebarProps) {
+  const containerClass = isMobileDialog 
+    ? "space-y-4 w-full" 
+    : "lg:col-span-4 space-y-6 lg:sticky lg:top-0 hidden lg:block";
+
   return (
-    <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-0">
+    <div className={containerClass}>
       <Card className="bg-card/65 border-border/40 overflow-hidden">
         <CardHeader className="pb-3">
           <CardTitle className="text-xs font-semibold text-foreground flex items-center gap-1.5 uppercase tracking-wider">

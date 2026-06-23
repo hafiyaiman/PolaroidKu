@@ -37,6 +37,10 @@ export function DesktopLayout({
   setEditButtonColor,
   editButtonTextColor,
   setEditButtonTextColor,
+  editPreheaderColor,
+  setEditPreheaderColor,
+  editSubheaderColor,
+  setEditSubheaderColor,
   handleResetColors,
   eventName,
   setEventName,
@@ -108,6 +112,10 @@ export function DesktopLayout({
             setEditButtonColor={setEditButtonColor}
             editButtonTextColor={editButtonTextColor}
             setEditButtonTextColor={setEditButtonTextColor}
+            editPreheaderColor={editPreheaderColor}
+            setEditPreheaderColor={setEditPreheaderColor}
+            editSubheaderColor={editSubheaderColor}
+            setEditSubheaderColor={setEditSubheaderColor}
             handleResetColors={handleResetColors}
             isPending={isPending}
           />
@@ -192,6 +200,8 @@ export function DesktopLayout({
         editButtonColor={editButtonColor}
         editButtonTextColor={editButtonTextColor}
         editBgColor={editBgColor}
+        editPreheaderColor={editPreheaderColor}
+        editSubheaderColor={editSubheaderColor}
         isDesktop={true}
       />
     </div>

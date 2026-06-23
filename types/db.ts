@@ -18,7 +18,10 @@ export interface DashboardEventDetails extends DbEvent {
   buttonColor: string | null;
   buttonTextColor: string | null;
   bgColor: string | null;
+  preheaderColor: string | null;
+  subheaderColor: string | null;
   coverImageUrl?: string;
+  showPublicGallery?: boolean | null;
 }
 
 export interface DashboardEvent extends DashboardEventDetails {

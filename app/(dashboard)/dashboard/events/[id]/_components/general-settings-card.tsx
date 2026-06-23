@@ -11,9 +11,10 @@ interface GeneralSettingsCardProps {
   initialName: string;
   initialDate: string;
   initialStatus: string;
+  initialShowPublicGallery: boolean;
   savePending: boolean;
   deletePending: boolean;
-  onSave: (data: { name: string; date: string; status: string }) => Promise<void>;
+  onSave: (data: { name: string; date: string; status: string; showPublicGallery: boolean }) => Promise<void>;
   onDelete: () => Promise<void>;
 }
 
@@ -21,6 +22,7 @@ export function GeneralSettingsCard({
   initialName,
   initialDate,
   initialStatus,
+  initialShowPublicGallery,
   savePending,
   deletePending,
   onSave,
@@ -29,12 +31,14 @@ export function GeneralSettingsCard({
   const [name, setName] = React.useState(initialName);
   const [date, setDate] = React.useState(initialDate);
   const [status, setStatus] = React.useState(initialStatus);
+  const [showPublicGallery, setShowPublicGallery] = React.useState(initialShowPublicGallery);
   const [saveError, setSaveError] = React.useState("");
 
   const hasChanges =
     name.trim() !== initialName ||
     date !== initialDate ||
-    status !== initialStatus;
+    status !== initialStatus ||
+    showPublicGallery !== initialShowPublicGallery;
 
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -47,7 +51,7 @@ export function GeneralSettingsCard({
     }
 
     try {
-      await onSave({ name: name.trim(), date, status });
+      await onSave({ name: name.trim(), date, status, showPublicGallery });
     } catch {
       setSaveError("Failed to update event settings.");
     }
@@ -114,6 +118,27 @@ export function GeneralSettingsCard({
                     className="flex-1 text-xs h-8 cursor-pointer active:scale-95 transition-all p-0 capitalize"
                   >
                     {s === "published" ? "Active" : s}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-1.5">
+              <Label className="text-xs font-semibold text-foreground">Guest Photo Gallery Visibility</Label>
+              <div className="flex gap-2">
+                {[
+                  { value: true, label: "Public (Show on guest landing page)" },
+                  { value: false, label: "Private (Hidden from guests)" }
+                ].map((opt) => (
+                  <Button
+                    key={String(opt.value)}
+                    type="button"
+                    variant={showPublicGallery === opt.value ? "default" : "outline"}
+                    onClick={() => setShowPublicGallery(opt.value)}
+                    disabled={savePending}
+                    className="flex-1 text-xs h-8 cursor-pointer active:scale-95 transition-all p-0"
+                  >
+                    {opt.label}
                   </Button>
                 ))}
               </div>

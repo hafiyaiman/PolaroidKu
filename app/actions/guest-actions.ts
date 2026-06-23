@@ -1,7 +1,7 @@
 "use server";
 
-import { db, events, submissions, eventSettings } from "@/lib/db";
-import { eq, or } from "drizzle-orm";
+import { db, events, submissions, eventSettings, eventBorders } from "@/lib/db";
+import { eq, or, and, desc } from "drizzle-orm";
 import { getPresignedUploadUrl } from "@/lib/storage/r2";
 import crypto from "crypto";
 
@@ -23,6 +23,9 @@ export async function getPublicEventDetails(eventIdOrSlug: string) {
         buttonColor: eventSettings.buttonColor,
         buttonTextColor: eventSettings.buttonTextColor,
         bgColor: eventSettings.bgColor,
+        preheaderColor: eventSettings.preheaderColor,
+        subheaderColor: eventSettings.subheaderColor,
+        showPublicGallery: eventSettings.showPublicGallery,
       })
       .from(events)
       .leftJoin(eventSettings, eq(events.id, eventSettings.eventId))
@@ -36,14 +39,83 @@ export async function getPublicEventDetails(eventIdOrSlug: string) {
       return { error: "This event guestbook is not active." };
     }
 
+    const { getPresignedDownloadUrl } = await import("@/lib/storage/r2");
+
     let coverImageUrl = "";
     if (row.coverImageKey) {
       try {
-        const { getPresignedDownloadUrl } = await import("@/lib/storage/r2");
         coverImageUrl = await getPresignedDownloadUrl(row.coverImageKey);
       } catch (err) {
         console.error("Failed to sign public cover image URL:", err);
       }
+    }
+
+    // 1. Fetch custom borders
+    const customBordersList = await db
+      .select()
+      .from(eventBorders)
+      .where(eq(eventBorders.eventId, row.id))
+      .orderBy(desc(eventBorders.createdAt));
+
+    const bordersWithDownloadUrls = await Promise.all(
+      customBordersList.map(async (b) => {
+        try {
+          const downloadUrl = await getPresignedDownloadUrl(b.imageKey);
+          return {
+            id: b.id,
+            name: b.name,
+            imageKey: b.imageKey,
+            layoutType: b.layoutType,
+            photoAlign: b.photoAlign,
+            imageUrl: downloadUrl,
+          };
+        } catch (err) {
+          console.error(`Failed to sign download URL for public border ${b.imageKey}:`, err);
+          return {
+            id: b.id,
+            name: b.name,
+            imageKey: b.imageKey,
+            layoutType: b.layoutType,
+            photoAlign: b.photoAlign,
+            imageUrl: "",
+          };
+        }
+      })
+    );
+
+    // 2. Fetch public submissions
+    let guestSubmissions: any[] = [];
+    if (row.showPublicGallery) {
+      const dbSubmissions = await db
+        .select()
+        .from(submissions)
+        .where(and(eq(submissions.eventId, row.id), eq(submissions.status, "visible")))
+        .orderBy(desc(submissions.createdAt));
+
+      const { formatTimeAgo } = await import("@/lib/format");
+      guestSubmissions = await Promise.all(
+        dbSubmissions.map(async (s) => {
+          try {
+            const downloadUrl = await getPresignedDownloadUrl(s.imageKey);
+            return {
+              id: s.id,
+              guestName: s.guestName || "Anonymous",
+              wish: s.message || "",
+              imageUrl: downloadUrl,
+              time: formatTimeAgo(s.createdAt),
+            };
+          } catch (err) {
+            console.error(`Failed to sign download URL for public submission ${s.imageKey}:`, err);
+            return {
+              id: s.id,
+              guestName: s.guestName || "Anonymous",
+              wish: s.message || "",
+              imageUrl: "",
+              time: formatTimeAgo(s.createdAt),
+            };
+          }
+        })
+      );
     }
 
     return { 
@@ -51,7 +123,9 @@ export async function getPublicEventDetails(eventIdOrSlug: string) {
       event: {
         ...row,
         coverImageUrl
-      }
+      },
+      borders: bordersWithDownloadUrls,
+      submissions: guestSubmissions,
     };
   } catch (err) {
     const error = err as Error;
@@ -115,41 +189,39 @@ export async function submitGuestSubmission(data: {
 
     const submissionId = crypto.randomUUID();
 
-    // Perform database transaction for atomic entry insertion and counter updates
-    await db.transaction(async (tx) => {
-      // 1. Insert guest submission record
-      await tx.insert(submissions).values({
-        id: submissionId,
-        eventId: data.eventId,
-        guestName: data.guestName ? data.guestName.trim() : null,
-        message: data.message ? data.message.trim() : null,
-        imageKey: data.imageKey,
-        imageSize: data.imageSize || null,
-        mimeType: data.mimeType || null,
-        status: "visible",
-      });
-
-      // 2. Load current counts
-      const [event] = await tx
-        .select({
-          photoCount: events.photoCount,
-          storageUsedBytes: events.storageUsedBytes,
-        })
-        .from(events)
-        .where(eq(events.id, data.eventId));
-
-      if (event) {
-        // 3. Update counter statistics
-        await tx
-          .update(events)
-          .set({
-            photoCount: event.photoCount + 1,
-            storageUsedBytes: event.storageUsedBytes + (data.imageSize || 0),
-            updatedAt: new Date(),
-          })
-          .where(eq(events.id, data.eventId));
-      }
+    // Perform database calls sequentially
+    // 1. Insert guest submission record
+    await db.insert(submissions).values({
+      id: submissionId,
+      eventId: data.eventId,
+      guestName: data.guestName ? data.guestName.trim() : null,
+      message: data.message ? data.message.trim() : null,
+      imageKey: data.imageKey,
+      imageSize: data.imageSize || null,
+      mimeType: data.mimeType || null,
+      status: "visible",
     });
+
+    // 2. Load current counts
+    const [event] = await db
+      .select({
+        photoCount: events.photoCount,
+        storageUsedBytes: events.storageUsedBytes,
+      })
+      .from(events)
+      .where(eq(events.id, data.eventId));
+
+    if (event) {
+      // 3. Update counter statistics
+      await db
+        .update(events)
+        .set({
+          photoCount: event.photoCount + 1,
+          storageUsedBytes: event.storageUsedBytes + (data.imageSize || 0),
+          updatedAt: new Date(),
+        })
+        .where(eq(events.id, data.eventId));
+    }
 
     return { success: true, submissionId };
   } catch (err) {

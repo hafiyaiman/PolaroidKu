@@ -10,6 +10,8 @@ export interface EventDesignerFormValues {
   buttonColor: string;
   buttonTextColor: string;
   bgColor: string;
+  preheaderColor?: string | null;
+  subheaderColor?: string | null;
 }
 
 export interface EventTemplate {
@@ -61,6 +63,10 @@ export interface DesignerLayoutProps {
   setEditButtonColor: (val: string) => void;
   editButtonTextColor: string;
   setEditButtonTextColor: (val: string) => void;
+  editPreheaderColor: string;
+  setEditPreheaderColor: (val: string) => void;
+  editSubheaderColor: string;
+  setEditSubheaderColor: (val: string) => void;
   handleResetColors: () => void;
   eventName: string;
   setEventName: (val: string) => void;

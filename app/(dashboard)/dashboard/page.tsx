@@ -1,141 +1,110 @@
 import Link from "next/link";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  CalendarIcon,
-  CameraIcon,
-  CloudArrowUpIcon,
-  PlusIcon,
-  ArrowRightIcon,
-  ShieldCheckIcon
-} from "@phosphor-icons/react/dist/ssr";
+import { PlusIcon } from "@phosphor-icons/react/dist/ssr";
 
-import { getDashboardStats, getRecentSubmissions } from "@/app/actions/event-actions";
+import {
+  getDashboardStats,
+  getRecentSubmissions,
+  getUserEvents,
+  getEventDetails,
+} from "@/app/actions/event-actions";
+import { StatsCards } from "./_components/stats-cards";
+import { EventCard } from "./_components/event-card";
+import { ActivityTimeline } from "./_components/activity-timeline";
+import { EmptyState } from "./_components/empty-state";
+import { SingleEventHero } from "./_components/single-event-hero";
 
 export default async function Page() {
   const dbStats = await getDashboardStats();
+  const userEvents = await getUserEvents();
   const recentSubmissions = await getRecentSubmissions();
 
-  // Dynamic database statistics
-  const stats = [
-    {
-      title: "Total Guestbooks",
-      value: dbStats.totalEvents.toString(),
-      description: "Active digital polaroid events",
-      icon: <CalendarIcon className="size-5 text-primary" />,
-    },
-    {
-      title: "Guest Submissions",
-      value: dbStats.totalWishes.toString(),
-      description: "Polaroid photos + wishes received",
-      icon: <CameraIcon className="size-5 text-primary" />,
-    },
-    {
-      title: "Secure Storage Space",
-      value: dbStats.storageUsed,
-      description: "Total space utilized by uploads",
-      icon: <CloudArrowUpIcon className="size-5 text-primary" />,
-    },
-    {
-      title: "Active Tier",
-      value: dbStats.activeTier,
-      description: "Unlimited events & custom subdomains",
-      icon: <ShieldCheckIcon className="size-5 text-primary" />,
-    },
-  ];
+  // If user has zero events, show a premium empty welcome state
+  if (userEvents.length === 0) {
+    return (
+      <div className="flex flex-1 flex-col justify-center p-4 md:p-6 bg-background/30 overflow-y-auto">
+        <EmptyState />
+      </div>
+    );
+  }
 
+  // Get single event details if they only have one event
+  let singleEventSubmissions: any[] = [];
+  let singleEventDetails: any = null;
+
+  if (userEvents.length === 1) {
+    const detailsResult = await getEventDetails(userEvents[0].id);
+    if (detailsResult.success) {
+      singleEventDetails = detailsResult.event;
+      singleEventSubmissions = detailsResult.submissions || [];
+    }
+  }
 
   return (
-    <>
-
-      <div className="flex flex-1 flex-col gap-6 p-4 md:p-6 bg-background/30 overflow-y-auto">
-        {/* Welcome Section */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6 border border-primary/15">
+    <div className="flex flex-1 flex-col gap-6 p-4 md:p-6 bg-background/30 overflow-y-auto">
+      {/* Welcome Section */}
+      {userEvents.length > 1 && (
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6 border border-primary/15 rounded-xl">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Welcome Back!</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              Welcome Back!
+            </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Your digital polaroid guestbooks are active and securing memories.
+              Design for the future, optimize for today. Here is how your events
+              are doing.
             </p>
           </div>
-          <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium cursor-pointer shadow-lg shadow-primary/20 active:scale-95 transition-all">
-            <Link href="/dashboard/events/new" className="flex items-center gap-1.5">
+          <Button
+            asChild
+            className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium cursor-pointer shadow-lg shadow-primary/20 active:scale-95 transition-all"
+          >
+            <Link
+              href="/dashboard/events/new"
+              className="flex items-center gap-1.5"
+            >
               <PlusIcon weight="bold" className="size-4" />
-              New Guestbook Event
+              New Event
             </Link>
           </Button>
         </div>
+      )}
 
-        {/* Stats Grid */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {stats.map((stat) => (
-            <Card key={stat.title} className="bg-card/45 border-border/40 hover:border-primary/25 hover:shadow-md transition-all">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
-                <div className="p-2 bg-muted/40 rounded-lg">{stat.icon}</div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold tracking-tight text-foreground">{stat.value}</div>
-                <CardDescription className="text-xs text-muted-foreground mt-1">{stat.description}</CardDescription>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+      {/* Top Stats - only rendered when user has multiple events */}
+      {userEvents.length > 1 && <StatsCards stats={dbStats} />}
 
-        {/* Recent Submissions Section */}
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold tracking-tight text-foreground">
-              Recent Guestbook Sign-ins
-            </h2>
-            <Button variant="ghost" asChild className="text-xs text-primary hover:text-primary/80 cursor-pointer">
-              <Link href="/dashboard/events" className="flex items-center gap-1">
-                View All Events
-                <ArrowRightIcon className="size-3" />
-              </Link>
-            </Button>
+      {/* Main Section */}
+      {userEvents.length === 1 && singleEventDetails ? (
+        /* Case B: Single Event Hero Layout */
+        <SingleEventHero
+          event={{
+            ...singleEventDetails,
+            guestCount: userEvents[0].guestCount,
+          }}
+          submissions={singleEventSubmissions}
+        />
+      ) : (
+        /* Case C: Multiple Events Portfolio Layout */
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* Events List Grid (Left 2 columns) */}
+          <div className="lg:col-span-2 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold tracking-tight text-foreground">
+                Your Events
+              </h2>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {userEvents.map((event) => (
+                <EventCard key={event.id} event={event} />
+              ))}
+            </div>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-3">
-            {recentSubmissions.length === 0 ? (
-              <div className="col-span-3 py-12 px-4 text-center text-xs text-muted-foreground bg-card/25 border border-dashed border-border/40 rounded-xl">
-                No memories captured yet. Print your event QR code to get started!
-              </div>
-            ) : (
-              recentSubmissions.map((sub) => (
-                <Card key={sub.id} className="overflow-hidden bg-card/65 border-border/40 hover:shadow-lg transition-all group">
-                  <div className="p-4 bg-muted/20 pb-0 flex flex-col items-center">
-                    {/* Polaroid Frame Container */}
-                    <div className="bg-white p-3 pb-8 shadow-md rounded border border-neutral-100 flex flex-col items-center w-full max-w-[240px] transform hover:rotate-1 hover:scale-[1.02] transition-transform">
-                      {/* Photo */}
-                      <div className="relative aspect-square w-full overflow-hidden bg-neutral-900 border border-neutral-200">
-                        <img
-                          src={sub.imageUrl}
-                          alt={sub.guestName || "Guest Photo"}
-                          className="object-cover w-full h-full filter sepia-[0.1] contrast-[1.05]"
-                        />
-                      </div>
-                      {/* Handwritten-style caption inside the polaroid */}
-                      <div className="mt-4 text-center font-serif text-neutral-800 text-xs tracking-tight truncate w-full">
-                        💌 {sub.guestName || "Anonymous"}
-                      </div>
-                    </div>
-                  </div>
-
-                  <CardContent className="pt-4 flex flex-col gap-2">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-semibold text-primary">{sub.eventName}</span>
-                      <span className="text-muted-foreground">{sub.time}</span>
-                    </div>
-                    <p className="text-sm text-foreground/80 italic font-serif bg-muted/30 p-3 rounded-lg border border-border/30 line-clamp-3">
-                      &quot;{sub.wish}&quot;
-                    </p>
-                  </CardContent>
-                </Card>
-              ))
-            )}
+          {/* Recent Activity Timeline (Right 1 column) */}
+          <div className="space-y-4">
+            <ActivityTimeline activities={recentSubmissions} />
           </div>
         </div>
-      </div>
-    </>
+      )}
+    </div>
   );
 }

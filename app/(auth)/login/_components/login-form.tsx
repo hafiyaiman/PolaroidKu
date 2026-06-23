@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Field as FormischField, Form, useForm } from "@formisch/react";
 import type { SubmitHandler } from "@formisch/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,17 @@ export function LoginForm({
   ...props
 }: React.ComponentPropsWithoutRef<"div">) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const errorParam = searchParams.get("error");
+    const errorDescParam = searchParams.get("error_description");
+    if (errorParam) {
+      setError(errorDescParam || `Authentication failed: ${errorParam}`);
+    }
+  }, [searchParams]);
+
   const form = useForm({
     schema: LoginSchema,
     initialInput: {
@@ -52,6 +62,7 @@ export function LoginForm({
       const { data, error } = await authClient.signIn.social({
         provider,
         callbackURL: `${window.location.origin}/dashboard`,
+        errorCallbackURL: `${window.location.origin}/login`,
         disableRedirect: true,
       });
       if (error) {

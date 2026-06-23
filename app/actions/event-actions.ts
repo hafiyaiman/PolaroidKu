@@ -2,7 +2,7 @@
 
 import { db, events, submissions, users, logs } from "@/lib/db";
 import { auth } from "@/lib/auth/server";
-import { eq, count, desc } from "drizzle-orm";
+import { eq, count, desc, and, gt, lte, inArray, sql, isNotNull, isNull } from "drizzle-orm";
 import { getPresignedDownloadUrl, getUserStorageSize } from "@/lib/storage/r2";
 import { type DbSubmission } from "@/types/db";
 import { formatTimeAgo, formatBytes } from "@/lib/format";
@@ -31,6 +31,8 @@ export async function getDashboardStats() {
     return {
       totalEvents: 0,
       totalWishes: 0,
+      totalContributors: 0,
+      expiringSoon: 0,
       storageUsed: "0 KB",
       activeTier: "Free Tier",
     };
@@ -43,22 +45,62 @@ export async function getDashboardStats() {
       .from(events)
       .where(eq(events.userId, session.user.id));
 
-    // 2. Count submissions from all user's events
+    // 2. Count expiring soon events (expires in next 7 days)
+    const now = new Date();
+    const soon = new Date();
+    soon.setDate(soon.getDate() + 7);
+
+    const [expiringSoonCount] = await db
+      .select({ value: count() })
+      .from(events)
+      .where(
+        and(
+          eq(events.userId, session.user.id),
+          gt(events.expiresAt, now),
+          lte(events.expiresAt, soon)
+        )
+      );
+
+    // 3. Count submissions and contributors
     const userEvents = await db
       .select({ id: events.id })
       .from(events)
       .where(eq(events.userId, session.user.id));
 
     let totalWishes = 0;
+    let totalContributors = 0;
+
     if (userEvents.length > 0) {
       const eventIds = userEvents.map((e) => e.id);
-      for (const eventId of eventIds) {
-        const [wishesCount] = await db
-          .select({ value: count() })
-          .from(submissions)
-          .where(eq(submissions.eventId, eventId));
-        totalWishes += wishesCount?.value || 0;
-      }
+      
+      const [wishesCount] = await db
+        .select({ value: count() })
+        .from(submissions)
+        .where(inArray(submissions.eventId, eventIds));
+      totalWishes = wishesCount?.value || 0;
+
+      // Unique contributors: distinct guest names + count of null guest names (each treated as unique contributor)
+      const [distinctContributorsCount] = await db
+        .select({ value: sql<number>`count(distinct ${submissions.guestName})` })
+        .from(submissions)
+        .where(
+          and(
+            inArray(submissions.eventId, eventIds),
+            isNotNull(submissions.guestName)
+          )
+        );
+      
+      const [nullGuestNameCount] = await db
+        .select({ value: count() })
+        .from(submissions)
+        .where(
+          and(
+            inArray(submissions.eventId, eventIds),
+            isNull(submissions.guestName)
+          )
+        );
+      
+      totalContributors = (Number(distinctContributorsCount?.value) || 0) + (nullGuestNameCount?.value || 0);
     }
 
     // Storage: Fetch actual R2 storage size in bytes and format it
@@ -66,11 +108,13 @@ export async function getDashboardStats() {
     const storageUsed = formatBytes(actualBytes);
 
     // Determine account role/tier
-    const activeTier = session.user.role === "admin" ? "Super Admin" : "Free Plan";
+    const activeTier = (session.user as any).role === "admin" ? "Super Admin" : "Free Plan";
 
     return {
       totalEvents: eventsCount?.value || 0,
       totalWishes,
+      totalContributors,
+      expiringSoon: expiringSoonCount?.value || 0,
       storageUsed,
       activeTier,
     };
@@ -79,6 +123,8 @@ export async function getDashboardStats() {
     return {
       totalEvents: 0,
       totalWishes: 0,
+      totalContributors: 0,
+      expiringSoon: 0,
       storageUsed: "0 MB",
       activeTier: "Free Plan",
     };
@@ -106,31 +152,25 @@ export async function getRecentSubmissions() {
     const eventMap = new Map(userEvents.map((e) => [e.id, e.name]));
 
     // Fetch recent submissions across all user events
-    let allRecentWishes: DbSubmission[] = [];
-    for (const eventId of eventIds) {
-      const recentWishes = await db
-        .select()
-        .from(submissions)
-        .where(eq(submissions.eventId, eventId))
-        .orderBy(desc(submissions.createdAt))
-        .limit(3);
-      allRecentWishes.push(...recentWishes);
-    }
-
-    // Sort combined submissions by creation date desc and limit to 3
-    allRecentWishes.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-    allRecentWishes = allRecentWishes.slice(0, 3);
+    const recentWishes = await db
+      .select()
+      .from(submissions)
+      .where(inArray(submissions.eventId, eventIds))
+      .orderBy(desc(submissions.createdAt))
+      .limit(5);
 
     const mappedWishes = await Promise.all(
-      allRecentWishes.map(async (w) => {
+      recentWishes.map(async (w) => {
         const downloadUrl = await getPresignedDownloadUrl(w.imageKey);
         return {
           id: w.id,
+          eventId: w.eventId,
           eventName: eventMap.get(w.eventId) || "Unknown Event",
           guestName: w.guestName,
           wish: w.message, // Renamed from wish -> message
           imageUrl: downloadUrl,
           time: formatTimeAgo(w.createdAt),
+          type: w.message ? ("wish" as const) : ("photo" as const),
         };
       })
     );

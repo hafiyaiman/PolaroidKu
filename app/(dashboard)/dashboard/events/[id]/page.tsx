@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getEventDetails } from "../_actions/event-actions";
 import { EventDetailsView } from "./_components/event-details-view";
 import { Button } from "@/components/ui/button";
+import { Suspense } from "react";
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -36,10 +37,13 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   }
 
   return (
-    <EventDetailsView
-      id={id}
-      initialEvent={res.event}
-      initialSubmissions={res.submissions || []}
-    />
+    <Suspense fallback={<div className="p-6 text-center text-xs text-muted-foreground animate-pulse">Loading event details...</div>}>
+      <EventDetailsView
+        id={id}
+        initialEvent={res.event}
+        initialSubmissions={res.submissions || []}
+        initialBorders={res.borders || []}
+      />
+    </Suspense>
   );
 }

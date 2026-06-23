@@ -16,6 +16,8 @@ interface SmartphonePreviewProps {
   editButtonColor: string;
   editButtonTextColor: string;
   editBgColor: string;
+  editPreheaderColor?: string | null;
+  editSubheaderColor?: string | null;
   isDesktop?: boolean;
 }
 
@@ -31,6 +33,8 @@ export function SmartphonePreview({
   editButtonColor,
   editButtonTextColor,
   editBgColor,
+  editPreheaderColor,
+  editSubheaderColor,
   isDesktop = false,
 }: SmartphonePreviewProps) {
   if (isDesktop) {
@@ -66,6 +70,8 @@ export function SmartphonePreview({
               buttonColor={editButtonColor}
               buttonTextColor={editButtonTextColor}
               bgColor={editBgColor}
+              preheaderColor={editPreheaderColor}
+              subheaderColor={editSubheaderColor}
               isPreview={true}
             />
           </div>
@@ -91,6 +97,8 @@ export function SmartphonePreview({
         buttonColor={editButtonColor}
         buttonTextColor={editButtonTextColor}
         bgColor={editBgColor}
+        preheaderColor={editPreheaderColor}
+        subheaderColor={editSubheaderColor}
         isPreview={true}
       />
     </div>

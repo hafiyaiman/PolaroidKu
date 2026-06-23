@@ -15,6 +15,13 @@
       "when": 1781438650054,
       "tag": "0001_refactor_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782013258200,
+      "tag": "0002_sweet_gressill",
+      "breakpoints": true
     }
   ]
 }

@@ -17,6 +17,8 @@ export interface GuestLandingTemplateProps {
   buttonColor?: string | null;
   buttonTextColor?: string | null;
   bgColor?: string | null;
+  preheaderColor?: string | null;
+  subheaderColor?: string | null;
   onAction?: () => void;
   isPreview?: boolean;
 }

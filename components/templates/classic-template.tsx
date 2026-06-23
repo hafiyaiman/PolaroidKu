@@ -10,6 +10,8 @@ interface TemplateProps {
   subheader?: string | null;
   coverImageUrl?: string | null;
   buttonShape: string;
+  preheaderColor?: string | null;
+  subheaderColor?: string | null;
   textColor?: string | null;
   buttonColor?: string | null;
   buttonTextColor?: string | null;
@@ -28,13 +30,16 @@ export function ClassicTemplate({
   buttonColor,
   buttonTextColor,
   bgColor,
+  preheaderColor,
+  subheaderColor,
   onAction,
   isPreview = false,
 }: TemplateProps) {
   const imageUrl = coverImageUrl || "/default-cover.png";
 
   const getButtonClass = () => {
-    const base = "w-full py-3 px-6 text-sm font-semibold tracking-wide shadow-lg transition-all active:scale-95 duration-200 flex items-center justify-center gap-2 cursor-pointer border-none";
+    const base =
+      "w-full py-3 px-6 text-sm font-semibold tracking-wide shadow-lg transition-all active:scale-95 duration-200 flex items-center justify-center gap-2 cursor-pointer border-none";
     switch (buttonShape) {
       case "square":
         return `${base} rounded-none`;
@@ -48,9 +53,15 @@ export function ClassicTemplate({
 
   const customTextStyle = textColor ? { color: textColor } : {};
   const customBgStyle = bgColor ? { backgroundColor: bgColor } : {};
+  const preheaderStyle = preheaderColor
+    ? { color: preheaderColor }
+    : customTextStyle;
+  const subheaderStyle = subheaderColor
+    ? { color: subheaderColor }
+    : customTextStyle;
 
   return (
-    <div 
+    <div
       className="h-full w-full flex flex-col justify-between bg-[#FAF9F5] p-6 overflow-y-auto select-none transition-all duration-500 ease-in-out"
       style={customBgStyle}
     >
@@ -59,9 +70,9 @@ export function ClassicTemplate({
         {/* Polaroid frame container */}
         <div className="bg-white p-3.5 pb-10 shadow-xl border border-neutral-200/40 rounded-sm w-full max-w-[240px] transform -rotate-1 hover:rotate-0 transition-transform duration-300 ease-out">
           <div className="relative aspect-[4/5] w-full bg-neutral-100 overflow-hidden border border-neutral-150">
-            <img 
-              src={imageUrl} 
-              alt="Polaroid Memory" 
+            <img
+              src={imageUrl}
+              alt="Polaroid Memory"
               className="w-full h-full object-cover object-center filter sepia-[0.04]"
             />
           </div>
@@ -73,14 +84,23 @@ export function ClassicTemplate({
 
         {/* Text Area */}
         <div className="mt-8 flex flex-col items-center">
-          <span className="text-xs font-serif italic text-neutral-500" style={customTextStyle}>
+          <span
+            className="text-xs font-serif italic text-neutral-500"
+            style={preheaderStyle}
+          >
             {preheader}
           </span>
-          <h1 className="text-2xl font-bold tracking-tight text-neutral-800 font-serif mt-1" style={customTextStyle}>
+          <h1
+            className="text-2xl font-bold tracking-tight text-neutral-800 font-serif mt-1"
+            style={customTextStyle}
+          >
             {eventName}
           </h1>
           {subheader && (
-            <p className="text-xs text-neutral-400 mt-2 font-serif" style={customTextStyle}>
+            <p
+              className="text-xs text-neutral-400 mt-2 font-serif"
+              style={subheaderStyle}
+            >
               {subheader}
             </p>
           )}
@@ -95,7 +115,8 @@ export function ClassicTemplate({
           className={getButtonClass()}
           style={{
             backgroundColor: buttonColor || "#451a03",
-            color: buttonTextColor || getContrastColor(buttonColor || "#451a03")
+            color:
+              buttonTextColor || getContrastColor(buttonColor || "#451a03"),
           }}
         >
           <CameraIcon className="size-4" weight="fill" />

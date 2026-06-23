@@ -25,7 +25,7 @@ export async function signUpWithEmail(input: v.InferOutput<typeof SignupSchema>)
 }
 
 export async function verifyEmailOtp(input: { email: string; otp: string }) {
-  const { data, error } = await auth.emailOtp.verifyEmail(input);
+  const { data, error } = await (auth as any).emailOtp.verifyEmail(input);
   if (error) {
     throw new Error(error.message || "Failed to verify email.");
   }
@@ -43,7 +43,7 @@ export async function resendSignupVerification(input: { email: string; callbackU
 }
 
 export async function sendForgotPasswordOtp(input: v.InferOutput<typeof ForgotPasswordSchema>) {
-  const { error } = await auth.emailOtp.sendVerificationOtp({
+  const { error } = await (auth as any).emailOtp.sendVerificationOtp({
     email: input.email,
     type: "forget-password",
   });

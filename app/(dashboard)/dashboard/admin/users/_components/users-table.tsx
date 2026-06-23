@@ -15,15 +15,33 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   LockKeyIcon,
   PencilSimpleIcon,
   TrashIcon,
 } from "@phosphor-icons/react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTableToolbar } from "@/components/data-table/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
-import { useAdminUsers, type AdminUser } from "../../_hooks/use-admin";
+import { useAdminUsers, useDeleteUser, useUpdateUserRole, useBanUser, useUnbanUser, type AdminUser } from "../../_hooks/use-admin";
 
 interface UsersTableProps {
   users: AdminUser[];
@@ -31,6 +49,10 @@ interface UsersTableProps {
 
 export function UsersTable({ users: initialUsers }: UsersTableProps) {
   const { data: users = initialUsers } = useAdminUsers(initialUsers);
+  const deleteUser = useDeleteUser();
+  const updateUserRole = useUpdateUserRole();
+  const banUser = useBanUser();
+  const unbanUser = useUnbanUser();
 
   const [sorting, setSorting] = React.useState<SortingState>([
     { id: "email", desc: false },
@@ -40,6 +62,64 @@ export function UsersTable({ users: initialUsers }: UsersTableProps) {
   );
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
+
+  const [banDialogOpen, setBanDialogOpen] = React.useState(false);
+  const [banTargetUserId, setBanTargetUserId] = React.useState<string | null>(null);
+  const [banTargetEmail, setBanTargetEmail] = React.useState<string | null>(null);
+  const [banReasonInput, setBanReasonInput] = React.useState("");
+
+  const handleDeleteUser = async (userId: string, email: string) => {
+    if (!confirm(`Are you absolutely sure you want to delete user "${email}"? All of their events and submissions will be permanently removed.`)) {
+      return;
+    }
+
+    try {
+      await deleteUser.mutateAsync(userId);
+      toast.success("User deleted successfully");
+    } catch (err) {
+      const error = err as Error;
+      toast.error(error.message || "Failed to delete user");
+    }
+  };
+
+  const handleRoleChange = async (userId: string, role: "user" | "admin") => {
+    try {
+      await updateUserRole.mutateAsync({ userId, role });
+      toast.success(`User role updated to ${role.toUpperCase()}`);
+    } catch (err) {
+      const error = err as Error;
+      toast.error(error.message || "Failed to update role");
+    }
+  };
+
+  const handleBanClick = (userId: string, email: string) => {
+    setBanTargetUserId(userId);
+    setBanTargetEmail(email);
+    setBanReasonInput("");
+    setBanDialogOpen(true);
+  };
+
+  const confirmBanUser = async () => {
+    if (!banTargetUserId) return;
+    try {
+      await banUser.mutateAsync({ userId: banTargetUserId, reason: banReasonInput.trim() });
+      toast.success("User banned successfully");
+      setBanDialogOpen(false);
+    } catch (err) {
+      const error = err as Error;
+      toast.error(error.message || "Failed to ban user");
+    }
+  };
+
+  const handleUnbanUser = async (userId: string) => {
+    try {
+      await unbanUser.mutateAsync(userId);
+      toast.success("User unbanned successfully");
+    } catch (err) {
+      const error = err as Error;
+      toast.error(error.message || "Failed to unban user");
+    }
+  };
 
   const columns = React.useMemo<ColumnDef<AdminUser>[]>(
     () => [
@@ -76,16 +156,24 @@ export function UsersTable({ users: initialUsers }: UsersTableProps) {
         ),
         cell: ({ row }) => {
           const role = row.original.role;
+          const isBanned = row.original.banned;
           return (
-            <Badge
-              className={
-                role === "admin"
-                  ? "bg-pink-500/15 text-pink-500 border border-pink-500/20 hover:bg-pink-500/20"
-                  : "bg-muted text-muted-foreground"
-              }
-            >
-              {role}
-            </Badge>
+            <div className="flex items-center gap-1.5">
+              <Badge
+                className={
+                  role === "admin"
+                    ? "bg-pink-500/15 text-pink-500 border border-pink-500/20 hover:bg-pink-500/20"
+                    : "bg-muted text-muted-foreground"
+                }
+              >
+                {role.toUpperCase()}
+              </Badge>
+              {isBanned && (
+                <Badge className="bg-red-500/15 text-red-500 border border-red-500/20 hover:bg-red-500/20">
+                  BANNED
+                </Badge>
+              )}
+            </div>
           );
         },
         enableColumnFilter: true,
@@ -182,27 +270,70 @@ export function UsersTable({ users: initialUsers }: UsersTableProps) {
       {
         id: "actions",
         header: () => <div className="text-right">Actions</div>,
-        cell: () => (
-          <div className="flex justify-end gap-1.5">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8 text-foreground/80 hover:text-pink-500 hover:bg-muted cursor-pointer"
-            >
-              <PencilSimpleIcon className="size-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8 text-foreground/80 hover:text-red-500 hover:bg-red-500/10 cursor-pointer"
-            >
-              <TrashIcon className="size-4" />
-            </Button>
-          </div>
-        ),
+        cell: ({ row }) => {
+          const user = row.original;
+          const isBanned = user.banned;
+          return (
+            <div className="flex justify-end gap-1.5">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 text-foreground/80 hover:text-pink-500 hover:bg-muted cursor-pointer"
+                  >
+                    <PencilSimpleIcon className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-card border-border/40">
+                  <DropdownMenuLabel className="text-xs">Manage Role</DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-border/20" />
+                  <DropdownMenuItem
+                    onClick={() => handleRoleChange(user.id, "user")}
+                    className="text-xs cursor-pointer"
+                  >
+                    Set Role: User
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleRoleChange(user.id, "admin")}
+                    className="text-xs cursor-pointer"
+                  >
+                    Set Role: Admin
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-border/20" />
+                  {isBanned ? (
+                    <DropdownMenuItem
+                      onClick={() => handleUnbanUser(user.id)}
+                      className="text-xs text-green-500 hover:text-green-500 hover:bg-green-500/10 cursor-pointer font-semibold"
+                    >
+                      Unban User
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem
+                      onClick={() => handleBanClick(user.id, user.email)}
+                      className="text-xs text-red-500 hover:text-red-500 hover:bg-red-500/10 cursor-pointer font-semibold"
+                    >
+                      Ban User
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={deleteUser.isPending}
+                onClick={() => handleDeleteUser(user.id, user.email)}
+                className="size-8 text-foreground/80 hover:text-red-500 hover:bg-red-500/10 cursor-pointer"
+              >
+                <TrashIcon className="size-4" />
+              </Button>
+            </div>
+          );
+        },
       },
     ],
-    []
+    [deleteUser.isPending]
   );
 
   const table = useReactTable({
@@ -223,10 +354,54 @@ export function UsersTable({ users: initialUsers }: UsersTableProps) {
   });
 
   return (
-    <Card className="bg-card/45 border-border/40 p-4">
-      <DataTable table={table}>
-        <DataTableToolbar table={table} />
-      </DataTable>
-    </Card>
+    <>
+      <Card className="bg-card/45 border-border/40 p-4">
+        <DataTable table={table}>
+          <DataTableToolbar table={table} />
+        </DataTable>
+      </Card>
+
+      <Dialog open={banDialogOpen} onOpenChange={setBanDialogOpen}>
+        <DialogContent className="sm:max-w-md bg-card border-border/40">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Ban User</DialogTitle>
+            <DialogDescription className="text-muted-foreground text-xs">
+              Please enter a reason for banning <strong>{banTargetEmail}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <label htmlFor="ban-reason" className="text-xs font-semibold text-foreground">
+                Reason for Ban
+              </label>
+              <Input
+                id="ban-reason"
+                placeholder="e.g. Violation of terms, spam submissions"
+                value={banReasonInput}
+                onChange={(e) => setBanReasonInput(e.target.value)}
+                className="bg-background border-border/30 text-foreground"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="ghost"
+              onClick={() => setBanDialogOpen(false)}
+              className="text-foreground/80 hover:bg-muted text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmBanUser}
+              disabled={banUser.isPending}
+              className="text-xs"
+            >
+              {banUser.isPending ? "Banning..." : "Ban User"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

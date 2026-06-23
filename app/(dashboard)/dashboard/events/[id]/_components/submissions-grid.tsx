@@ -1,15 +1,22 @@
 "use client";
 
 import * as React from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   CameraIcon,
   DownloadSimpleIcon,
   TrashIcon,
-  SpinnerGapIcon
+  SpinnerGapIcon,
 } from "@phosphor-icons/react";
+
 import { type EventSubmission } from "./event-details-view";
 
 interface SubmissionsGridProps {
@@ -18,8 +25,14 @@ interface SubmissionsGridProps {
   onDelete: (id: string) => Promise<void>;
 }
 
-export function SubmissionsGrid({ submissions, deletePending, onDelete }: SubmissionsGridProps) {
-  const [selectedSub, setSelectedSub] = React.useState<EventSubmission | null>(null);
+export function SubmissionsGrid({
+  submissions,
+  deletePending,
+  onDelete,
+}: SubmissionsGridProps) {
+  const [selectedSub, setSelectedSub] = React.useState<EventSubmission | null>(
+    null,
+  );
   const [dialogOpen, setDialogOpen] = React.useState(false);
 
   return (
@@ -28,10 +41,14 @@ export function SubmissionsGrid({ submissions, deletePending, onDelete }: Submis
         <div>
           <h2 className="text-md font-bold text-foreground">Guestbook Wall</h2>
           <p className="text-[11px] text-muted-foreground">
-            All guest submissions in real-time. Click any polaroid to view or delete.
+            All guest submissions in real-time. Click any polaroid to view or
+            delete.
           </p>
         </div>
-        <Badge variant="outline" className="text-xs font-semibold px-2 py-0.5 border-border">
+        <Badge
+          variant="outline"
+          className="text-xs font-semibold px-2 py-0.5 border-border"
+        >
           {submissions.length} polaroids
         </Badge>
       </div>
@@ -41,73 +58,71 @@ export function SubmissionsGrid({ submissions, deletePending, onDelete }: Submis
           <div className="p-4 bg-muted/30 rounded-full text-muted-foreground mb-4">
             <CameraIcon className="size-8" />
           </div>
-          <h3 className="font-semibold text-base text-foreground">Your guestbook is empty</h3>
+          <h3 className="font-semibold text-base text-foreground">
+            Your guestbook is empty
+          </h3>
           <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-            Provide the QR code to your event guests so they can start snapping photos and signing the wall!
+            Provide the QR code to your event guests so they can start snapping
+            photos and signing the wall!
           </p>
         </div>
       ) : (
-        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-4 grid-cols-2">
           {submissions.map((sub: EventSubmission) => (
-            <Dialog key={sub.id} open={dialogOpen && selectedSub?.id === sub.id} onOpenChange={(open) => {
-              setDialogOpen(open);
-              if (open) setSelectedSub(sub);
-            }}>
+            <Dialog
+              key={sub.id}
+              open={dialogOpen && selectedSub?.id === sub.id}
+              onOpenChange={(open) => {
+                setDialogOpen(open);
+                if (open) setSelectedSub(sub);
+              }}
+            >
               <DialogTrigger asChild>
                 <div
                   onClick={() => {
                     setSelectedSub(sub);
                     setDialogOpen(true);
                   }}
-                  className="bg-card border border-border/40 hover:border-primary/20 p-4 shadow-md rounded-xl hover:shadow-xl transition-all cursor-pointer flex flex-col items-center group transform hover:-translate-y-0.5"
+                  className="cursor-pointer group relative overflow-hidden rounded-lg border border-border/40 bg-muted/30 hover:shadow-md transition-shadow"
                 >
-                  {/* Polaroid Paper Frame */}
-                  <div className="bg-white p-3 pb-8 w-full shadow border border-neutral-100 flex flex-col items-center rounded-sm">
-                    {/* Image */}
-                    <div className="relative aspect-square w-full overflow-hidden bg-neutral-900 border border-neutral-100">
-                      <img
-                        src={sub.imageUrl}
-                        alt={sub.guestName}
-                        className="object-cover w-full h-full filter sepia-[0.05] contrast-[1.02] group-hover:scale-105 transition-transform duration-300"
-                      />
-                    </div>
-                    {/* Polaroid Signature */}
-                    <div className="mt-4 text-center font-serif text-neutral-800 text-sm tracking-tight truncate w-full">
-                      ✍️ {sub.guestName}
-                    </div>
+                  <div className="overflow-hidden bg-neutral-900">
+                    <img
+                      src={sub.imageUrl}
+                      alt={sub.guestName}
+                      className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
+                    />
                   </div>
-
-                  <div className="mt-4 w-full text-xs text-foreground/80 italic font-serif bg-muted/30 p-3 rounded-lg border border-border/30 line-clamp-3">
-                    &quot;{sub.wish}&quot;
-                  </div>
-                  <div className="text-[10px] text-muted-foreground self-end mt-2">
-                    {sub.time}
+                  <div className="px-2 py-1.5 border-t border-border/30 bg-background/80">
+                    <p className="text-[10px] font-semibold truncate">
+                      {sub.guestName}
+                    </p>
+                    <p className="text-[9px] text-muted-foreground">
+                      {sub.time}
+                    </p>
                   </div>
                 </div>
               </DialogTrigger>
 
-              {/* Polaroid Detail Dialog */}
               <DialogContent className="sm:max-w-md bg-card border-border/40">
                 <DialogHeader>
-                  <DialogTitle className="text-foreground text-base font-semibold">Guestbook Polaroid Page</DialogTitle>
+                  <DialogTitle className="text-foreground text-base font-semibold">
+                    {selectedSub?.guestName}&apos;s Photo
+                  </DialogTitle>
                 </DialogHeader>
                 {selectedSub && (
                   <div className="flex flex-col items-center gap-4 mt-2">
-                    <div className="bg-white p-4 pb-12 shadow-2xl rounded border border-neutral-100 w-full max-w-[280px]">
-                      <div className="relative aspect-square w-full overflow-hidden bg-neutral-900 border">
-                        <img
-                          src={selectedSub.imageUrl}
-                          alt={selectedSub.guestName}
-                          className="object-cover w-full h-full"
-                        />
-                      </div>
-                      <div className="mt-5 text-center font-serif text-neutral-800 text-base font-semibold">
-                        {selectedSub.guestName}
-                      </div>
+                    <div className="w-full overflow-hidden rounded-lg bg-neutral-900 border border-border/40">
+                      <img
+                        src={selectedSub.imageUrl}
+                        alt={selectedSub.guestName}
+                        className="w-full h-full object-contain"
+                      />
                     </div>
-                    <div className="w-full bg-muted/40 p-4 rounded-xl border border-border/40 italic font-serif text-sm text-foreground/95 text-center">
-                      &quot;{selectedSub.wish}&quot;
-                    </div>
+                    {selectedSub.wish && (
+                      <p className="text-sm text-muted-foreground italic text-center">
+                        &ldquo;{selectedSub.wish}&rdquo;
+                      </p>
+                    )}
                     <div className="flex justify-between items-center w-full text-xs text-muted-foreground pt-2 border-t border-border/30">
                       <span>Uploaded {selectedSub.time}</span>
                       <div className="flex gap-2">
@@ -115,8 +130,12 @@ export function SubmissionsGrid({ submissions, deletePending, onDelete }: Submis
                           type="button"
                           variant="ghost"
                           disabled={deletePending}
-                          onClick={() => onDelete(selectedSub.id).then(() => setDialogOpen(false))}
-                          className="text-red-500 hover:text-red-650 hover:bg-red-500/10 gap-1 text-xs cursor-pointer"
+                          onClick={() =>
+                            onDelete(selectedSub.id).then(() =>
+                              setDialogOpen(false),
+                            )
+                          }
+                          className="text-red-500 hover:bg-red-500/10 gap-1 text-xs cursor-pointer"
                         >
                           {deletePending ? (
                             <SpinnerGapIcon className="size-3.5 animate-spin" />
@@ -125,10 +144,20 @@ export function SubmissionsGrid({ submissions, deletePending, onDelete }: Submis
                           )}
                           Delete
                         </Button>
-                        <Button variant="ghost" size="sm" className="text-primary hover:text-primary/80 gap-1" asChild>
-                          <a href={selectedSub.imageUrl} download target="_blank" rel="noreferrer">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-primary gap-1"
+                          asChild
+                        >
+                          <a
+                            href={selectedSub.imageUrl}
+                            download
+                            target="_blank"
+                            rel="noreferrer"
+                          >
                             <DownloadSimpleIcon className="size-4" />
-                            Download Photo
+                            Download
                           </a>
                         </Button>
                       </div>

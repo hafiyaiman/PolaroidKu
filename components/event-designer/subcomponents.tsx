@@ -198,6 +198,10 @@ interface DesignColorsCollapseProps {
   setEditButtonColor: (val: string) => void;
   editButtonTextColor: string;
   setEditButtonTextColor: (val: string) => void;
+  editPreheaderColor: string;
+  setEditPreheaderColor: (val: string) => void;
+  editSubheaderColor: string;
+  setEditSubheaderColor: (val: string) => void;
   handleResetColors: () => void;
   isPending: boolean;
   isMobile?: boolean;
@@ -214,6 +218,10 @@ export function DesignColorsCollapse({
   setEditButtonColor,
   editButtonTextColor,
   setEditButtonTextColor,
+  editPreheaderColor,
+  setEditPreheaderColor,
+  editSubheaderColor,
+  setEditSubheaderColor,
   handleResetColors,
   isPending,
   isMobile = false,
@@ -247,6 +255,20 @@ export function DesignColorsCollapse({
             label="Button Text"
             value={editButtonTextColor}
             onChange={setEditButtonTextColor}
+            isPending={isPending}
+            isMobile={true}
+          />
+          <ColorPickerInput
+            label="Pre-header Text"
+            value={editPreheaderColor || "#64748B"}
+            onChange={setEditPreheaderColor}
+            isPending={isPending}
+            isMobile={true}
+          />
+          <ColorPickerInput
+            label="Sub-header Text"
+            value={editSubheaderColor || "#64748B"}
+            onChange={setEditSubheaderColor}
             isPending={isPending}
             isMobile={true}
           />
@@ -313,6 +335,18 @@ export function DesignColorsCollapse({
               label="Button Text"
               value={editButtonTextColor}
               onChange={setEditButtonTextColor}
+              isPending={isPending}
+            />
+            <ColorPickerInput
+              label="Pre-header Text"
+              value={editPreheaderColor || "#64748B"}
+              onChange={setEditPreheaderColor}
+              isPending={isPending}
+            />
+            <ColorPickerInput
+              label="Sub-header Text"
+              value={editSubheaderColor || "#64748B"}
+              onChange={setEditSubheaderColor}
               isPending={isPending}
             />
           </div>

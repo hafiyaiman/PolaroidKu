@@ -1,6 +1,6 @@
 "use server";
 
-import { db, events, submissions, eventSettings, logs } from "@/lib/db";
+import { db, events, submissions, eventSettings, logs, eventBorders } from "@/lib/db";
 import { auth } from "@/lib/auth/server";
 import { eq, and, count, desc } from "drizzle-orm";
 import { getPresignedDownloadUrl, deleteObjectFromR2, deleteEventFolderFromR2 } from "@/lib/storage/r2";
@@ -55,6 +55,8 @@ export async function createEvent(data: {
   buttonColor?: string;
   buttonTextColor?: string;
   bgColor?: string;
+  preheaderColor?: string | null;
+  subheaderColor?: string | null;
 }) {
   const { data: session } = await auth.getSession();
   if (!session?.user?.id) {
@@ -74,38 +76,38 @@ export async function createEvent(data: {
   const slug = `${baseSlug}-${Math.random().toString(36).substring(2, 6)}`;
 
   try {
-    await db.transaction(async (tx) => {
-      // 1. Create base event record
-      await tx.insert(events).values({
-        id: uniqueId,
-        name: data.name,
-        slug: slug,
-        date: data.date,
-        userId: session.user.id,
-        status: data.status || "draft",
-        plan,
-        photoLimit,
-        photoCount: 0,
-        storageUsedBytes: 0,
-        retentionDays,
-        expiresAt,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
+    // 1. Create base event record
+    await db.insert(events).values({
+      id: uniqueId,
+      name: data.name,
+      slug: slug,
+      date: data.date,
+      userId: session.user.id,
+      status: data.status || "draft",
+      plan,
+      photoLimit,
+      photoCount: 0,
+      storageUsedBytes: 0,
+      retentionDays,
+      expiresAt,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
 
-      // 2. Create matching event settings customizer record
-      await tx.insert(eventSettings).values({
-        eventId: uniqueId,
-        template: data.template || "classic",
-        coverImageKey: data.coverImageKey || null,
-        preheader: data.preheader || "Our Guestbook",
-        subheader: data.subheader || null,
-        buttonShape: data.buttonShape || "rounded",
-        textColor: data.textColor || "#0F172A",
-        buttonColor: data.buttonColor || "#0F172A",
-        buttonTextColor: data.buttonTextColor || "#FFFFFF",
-        bgColor: data.bgColor || "#FAF9F5",
-      });
+    // 2. Create matching event settings customizer record
+    await db.insert(eventSettings).values({
+      eventId: uniqueId,
+      template: data.template || "classic",
+      coverImageKey: data.coverImageKey || null,
+      preheader: data.preheader || "Our Guestbook",
+      subheader: data.subheader || null,
+      buttonShape: data.buttonShape || "rounded",
+      textColor: data.textColor || "#0F172A",
+      buttonColor: data.buttonColor || "#0F172A",
+      buttonTextColor: data.buttonTextColor || "#FFFFFF",
+      bgColor: data.bgColor || "#FAF9F5",
+      preheaderColor: data.preheaderColor || null,
+      subheaderColor: data.subheaderColor || null,
     });
 
     await logActivity(
@@ -156,6 +158,8 @@ export async function getUserEvents() {
         buttonColor: eventSettings.buttonColor,
         buttonTextColor: eventSettings.buttonTextColor,
         bgColor: eventSettings.bgColor,
+        preheaderColor: eventSettings.preheaderColor,
+        subheaderColor: eventSettings.subheaderColor,
         pendingPurchaseId: events.pendingPurchaseId,
       })
       .from(events)
@@ -219,7 +223,10 @@ export async function getEventDetails(eventId: string) {
         buttonColor: eventSettings.buttonColor,
         buttonTextColor: eventSettings.buttonTextColor,
         bgColor: eventSettings.bgColor,
+        preheaderColor: eventSettings.preheaderColor,
+        subheaderColor: eventSettings.subheaderColor,
         pendingPurchaseId: events.pendingPurchaseId,
+        showPublicGallery: eventSettings.showPublicGallery,
       })
       .from(events)
       .leftJoin(eventSettings, eq(events.id, eventSettings.eventId))
@@ -228,6 +235,38 @@ export async function getEventDetails(eventId: string) {
     if (!event) {
       return { error: "Event not found" };
     }
+
+    const eventBordersList = await db
+      .select()
+      .from(eventBorders)
+      .where(eq(eventBorders.eventId, eventId))
+      .orderBy(desc(eventBorders.createdAt));
+
+    const bordersWithDownloadUrls = await Promise.all(
+      eventBordersList.map(async (b) => {
+        try {
+          const downloadUrl = await getPresignedDownloadUrl(b.imageKey);
+          return {
+            id: b.id,
+            name: b.name,
+            imageKey: b.imageKey,
+            layoutType: b.layoutType,
+            photoAlign: b.photoAlign,
+            imageUrl: downloadUrl,
+          };
+        } catch (err) {
+          console.error(`Failed to sign download URL for border ${b.imageKey}:`, err);
+          return {
+            id: b.id,
+            name: b.name,
+            imageKey: b.imageKey,
+            layoutType: b.layoutType,
+            photoAlign: b.photoAlign,
+            imageUrl: "",
+          };
+        }
+      })
+    );
 
     const eventSubmissions = await db
       .select()
@@ -276,6 +315,7 @@ export async function getEventDetails(eventId: string) {
         coverImageUrl,
       },
       submissions: submissionsWithDownloadUrls,
+      borders: bordersWithDownloadUrls,
     };
   } catch (err) {
     const error = err as Error;
@@ -299,6 +339,9 @@ export async function updateEventDetails(
     buttonColor?: string;
     buttonTextColor?: string;
     bgColor?: string;
+    preheaderColor?: string | null;
+    subheaderColor?: string | null;
+    showPublicGallery?: boolean;
   }
 ) {
   const { data: session } = await auth.getSession();
@@ -332,22 +375,23 @@ export async function updateEventDetails(
     if (data.buttonColor !== undefined) updateSettingsData.buttonColor = data.buttonColor;
     if (data.buttonTextColor !== undefined) updateSettingsData.buttonTextColor = data.buttonTextColor;
     if (data.bgColor !== undefined) updateSettingsData.bgColor = data.bgColor;
+    if (data.preheaderColor !== undefined) updateSettingsData.preheaderColor = data.preheaderColor;
+    if (data.subheaderColor !== undefined) updateSettingsData.subheaderColor = data.subheaderColor;
+    if (data.showPublicGallery !== undefined) updateSettingsData.showPublicGallery = data.showPublicGallery;
 
-    // Apply updates inside a transaction to keep event and event settings tables synced
-    await db.transaction(async (tx) => {
-      if (Object.keys(updateEventData).length > 0) {
-        await tx.update(events).set(updateEventData).where(eq(events.id, eventId));
-      }
-      if (Object.keys(updateSettingsData).length > 0) {
-        await tx
-          .insert(eventSettings)
-          .values({ eventId, ...updateSettingsData })
-          .onConflictDoUpdate({
-            target: eventSettings.eventId,
-            set: updateSettingsData,
-          });
-      }
-    });
+    // Apply updates sequentially
+    if (Object.keys(updateEventData).length > 0) {
+      await db.update(events).set(updateEventData).where(eq(events.id, eventId));
+    }
+    if (Object.keys(updateSettingsData).length > 0) {
+      await db
+        .insert(eventSettings)
+        .values({ eventId, ...updateSettingsData })
+        .onConflictDoUpdate({
+          target: eventSettings.eventId,
+          set: updateSettingsData,
+        });
+    }
 
     await logActivity("update", `Updated settings for event "${event.name}" (${eventId})`, "event", eventId);
 
@@ -462,22 +506,20 @@ export async function deleteSubmissionAction(eventId: string, submissionId: stri
       await deleteObjectFromR2(submission.imageKey);
     }
 
-    // Decrement counters inside a transaction
-    await db.transaction(async (tx) => {
-      await tx.delete(submissions).where(eq(submissions.id, submissionId));
+    // Decrement counters sequentially
+    await db.delete(submissions).where(eq(submissions.id, submissionId));
 
-      const newCount = Math.max(0, event.photoCount - 1);
-      const newStorage = Math.max(0, event.storageUsedBytes - (submission.imageSize || 0));
+    const newCount = Math.max(0, event.photoCount - 1);
+    const newStorage = Math.max(0, event.storageUsedBytes - (submission.imageSize || 0));
 
-      await tx
-        .update(events)
-        .set({
-          photoCount: newCount,
-          storageUsedBytes: newStorage,
-          updatedAt: new Date(),
-        })
-        .where(eq(events.id, eventId));
-    });
+    await db
+      .update(events)
+      .set({
+        photoCount: newCount,
+        storageUsedBytes: newStorage,
+        updatedAt: new Date(),
+      })
+      .where(eq(events.id, eventId));
 
     await logActivity(
       "delete",
@@ -491,5 +533,179 @@ export async function deleteSubmissionAction(eventId: string, submissionId: stri
     const error = err as Error;
     console.error("Failed to delete submission:", error);
     return { error: error.message || "Failed to delete submission." };
+  }
+}
+
+export async function requestBorderUploadUrl(data: {
+  eventId: string;
+  filename: string;
+  contentType: string;
+}) {
+  const { data: session } = await auth.getSession();
+  if (!session?.user?.id) {
+    return { error: "Unauthorized" };
+  }
+
+  try {
+    const [event] = await db
+      .select({ userId: events.userId })
+      .from(events)
+      .where(and(eq(events.id, data.eventId), eq(events.userId, session.user.id)));
+
+    if (!event) {
+      return { error: "Event not found or unauthorized." };
+    }
+
+    const { getPresignedUploadUrl } = await import("@/lib/storage/r2");
+    
+    // Construct key under user prefix
+    const sanitizedFilename = `border-${Date.now()}-${data.filename.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+    const { uploadUrl, key } = await getPresignedUploadUrl(
+      session.user.id,
+      data.eventId,
+      sanitizedFilename,
+      data.contentType
+    );
+
+    return { success: true, uploadUrl, key };
+  } catch (err) {
+    const error = err as Error;
+    console.error("Failed to generate border upload URL:", error);
+    return { error: "Failed to initialize upload session." };
+  }
+}
+
+export async function createCustomBorder(data: {
+  eventId: string;
+  name: string;
+  imageKey: string;
+  layoutType: string;
+  photoAlign?: string;
+}) {
+  const { data: session } = await auth.getSession();
+  if (!session?.user?.id) {
+    return { error: "Unauthorized" };
+  }
+
+  try {
+    const [event] = await db
+      .select()
+      .from(events)
+      .where(and(eq(events.id, data.eventId), eq(events.userId, session.user.id)));
+
+    if (!event) {
+      return { error: "Event not found or unauthorized." };
+    }
+
+    const borderId = `border-${Math.random().toString(36).substring(2, 11)}`;
+
+    await db.insert(eventBorders).values({
+      id: borderId,
+      eventId: data.eventId,
+      name: data.name.trim(),
+      imageKey: data.imageKey,
+      layoutType: data.layoutType,
+      photoAlign: data.photoAlign || "center",
+    });
+
+    await logActivity("create_border", `Created custom border "${data.name}" for event "${event.name}"`, "border", borderId);
+
+    return { success: true, borderId };
+  } catch (err) {
+    const error = err as Error;
+    console.error("Failed to create custom border:", error);
+    return { error: error.message || "Failed to create custom border." };
+  }
+}
+
+export async function deleteCustomBorder(eventId: string, borderId: string) {
+  const { data: session } = await auth.getSession();
+  if (!session?.user?.id) {
+    return { error: "Unauthorized" };
+  }
+
+  try {
+    const [event] = await db
+      .select()
+      .from(events)
+      .where(and(eq(events.id, eventId), eq(events.userId, session.user.id)));
+
+    if (!event) {
+      return { error: "Event not found or unauthorized." };
+    }
+
+    const [border] = await db
+      .select()
+      .from(eventBorders)
+      .where(and(eq(eventBorders.id, borderId), eq(eventBorders.eventId, eventId)));
+
+    if (!border) {
+      return { error: "Border not found." };
+    }
+
+    if (border.imageKey) {
+      await deleteObjectFromR2(border.imageKey);
+    }
+
+    await db.delete(eventBorders).where(eq(eventBorders.id, borderId));
+
+    await logActivity("delete_border", `Deleted custom border "${border.name}" for event "${event.name}"`, "border", borderId);
+
+    return { success: true };
+  } catch (err) {
+    const error = err as Error;
+    console.error("Failed to delete custom border:", error);
+    return { error: error.message || "Failed to delete custom border." };
+  }
+}
+
+export async function updateCustomBorder(data: {
+  eventId: string;
+  borderId: string;
+  name: string;
+  imageKey: string;
+  photoAlign?: string;
+}) {
+  const { data: session } = await auth.getSession();
+  if (!session?.user?.id) {
+    return { error: "Unauthorized" };
+  }
+
+  try {
+    const [event] = await db
+      .select()
+      .from(events)
+      .where(and(eq(events.id, data.eventId), eq(events.userId, session.user.id)));
+
+    if (!event) {
+      return { error: "Event not found or unauthorized." };
+    }
+
+    // Optional: delete old object from R2 first
+    const [oldBorder] = await db
+      .select({ imageKey: eventBorders.imageKey })
+      .from(eventBorders)
+      .where(and(eq(eventBorders.id, data.borderId), eq(eventBorders.eventId, data.eventId)));
+    
+    if (oldBorder && oldBorder.imageKey && oldBorder.imageKey !== data.imageKey) {
+      await deleteObjectFromR2(oldBorder.imageKey).catch(() => {});
+    }
+
+    await db
+      .update(eventBorders)
+      .set({
+        name: data.name.trim(),
+        imageKey: data.imageKey,
+        ...(data.photoAlign ? { photoAlign: data.photoAlign } : {}),
+      })
+      .where(and(eq(eventBorders.id, data.borderId), eq(eventBorders.eventId, data.eventId)));
+
+    await logActivity("update_border", `Updated custom border "${data.name}" (${data.borderId}) for event "${event.name}"`, "border", data.borderId);
+
+    return { success: true };
+  } catch (err) {
+    const error = err as Error;
+    console.error("Failed to update custom border:", error);
+    return { error: error.message || "Failed to update custom border." };
   }
 }

@@ -37,6 +37,10 @@ export function MobileLayout({
   setEditButtonColor,
   editButtonTextColor,
   setEditButtonTextColor,
+  editPreheaderColor,
+  setEditPreheaderColor,
+  editSubheaderColor,
+  setEditSubheaderColor,
   handleResetColors,
   eventName,
   setEventName,
@@ -108,6 +112,8 @@ export function MobileLayout({
           editButtonColor={editButtonColor}
           editButtonTextColor={editButtonTextColor}
           editBgColor={editBgColor}
+          editPreheaderColor={editPreheaderColor}
+          editSubheaderColor={editSubheaderColor}
           isDesktop={false}
         />
       </div>
@@ -169,6 +175,10 @@ export function MobileLayout({
               setEditButtonColor={setEditButtonColor}
               editButtonTextColor={editButtonTextColor}
               setEditButtonTextColor={setEditButtonTextColor}
+              editPreheaderColor={editPreheaderColor}
+              setEditPreheaderColor={setEditPreheaderColor}
+              editSubheaderColor={editSubheaderColor}
+              setEditSubheaderColor={setEditSubheaderColor}
               handleResetColors={handleResetColors}
               isPending={isPending}
               isMobile={true}

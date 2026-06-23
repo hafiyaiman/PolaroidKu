@@ -9,6 +9,8 @@ export const users = neonAuthSchema.table("user", {
   name: text("name"),
   email: text("email").notNull(),
   role: text("role"),
+  banned: boolean("banned"),
+  banReason: text("banReason"),
   createdAt: timestamp("createdAt", { withTimezone: true }),
   updatedAt: timestamp("updatedAt", { withTimezone: true }),
 });
@@ -52,7 +54,23 @@ export const eventSettings = pgTable("event_settings", {
   buttonColor: text("button_color").default("#0F172A").notNull(),
   buttonTextColor: text("button_text_color").default("#FFFFFF").notNull(),
   bgColor: text("bg_color").default("#FAF9F5").notNull(),
+  preheaderColor: text("preheader_color"),
+  subheaderColor: text("subheader_color"),
+  showPublicGallery: boolean("show_public_gallery").default(true).notNull(),
 });
+
+// Event customized/uploaded PNG border frames
+export const eventBorders = pgTable("event_borders", {
+  id: text("id").primaryKey(),
+  eventId: text("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  name: text("name"),
+  imageKey: text("image_key").notNull(), // Cloudflare R2 object key
+  layoutType: text("layout_type").notNull(), // 'single_square' | 'single_portrait' | 'three_strip'
+  photoAlign: text("photo_align").notNull().default("center"), // 'top' | 'center' | 'bottom'
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index("event_borders_event_id_idx").on(table.eventId),
+]);
 
 // Guest photo + signature submissions (replacing wishes)
 export const submissions = pgTable("submissions", {

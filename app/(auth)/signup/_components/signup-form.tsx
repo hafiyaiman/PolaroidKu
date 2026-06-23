@@ -2,7 +2,7 @@
 
 import { Field as FormischField, Form, useForm } from "@formisch/react";
 import type { SubmitHandler } from "@formisch/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -37,11 +37,20 @@ type SignupStep = "signup" | "verify";
 
 export function SignupForm({ className, ...props }: ComponentPropsWithoutRef<"div">) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [step, setStep] = useState<SignupStep>("signup");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(120);
+
+  useEffect(() => {
+    const errorParam = searchParams.get("error");
+    const errorDescParam = searchParams.get("error_description");
+    if (errorParam) {
+      setError(errorDescParam || `Authentication failed: ${errorParam}`);
+    }
+  }, [searchParams]);
 
   const form = useForm({
     schema: SignupSchema,
@@ -127,6 +136,7 @@ export function SignupForm({ className, ...props }: ComponentPropsWithoutRef<"di
       const { data, error } = await authClient.signIn.social({
         provider,
         callbackURL: `${window.location.origin}/dashboard`,
+        errorCallbackURL: `${window.location.origin}/signup`,
         disableRedirect: true,
       });
       if (error) {

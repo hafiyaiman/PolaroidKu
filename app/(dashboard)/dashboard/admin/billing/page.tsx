@@ -9,7 +9,7 @@ import { CoinsIcon, ReceiptIcon, CheckCircleIcon, PlugsIcon, SparkleIcon } from 
 
 export default async function Page() {
   const { data: session } = await auth.getSession();
-  if (!session?.user || session.user.role !== "admin") {
+  if (!session?.user || (session.user as any).role !== "admin") {
     redirect("/dashboard");
   }
 

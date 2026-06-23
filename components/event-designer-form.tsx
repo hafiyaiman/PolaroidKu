@@ -28,6 +28,8 @@ interface EventDesignerFormProps {
     buttonColor?: string;
     buttonTextColor?: string;
     bgColor?: string;
+    preheaderColor?: string | null;
+    subheaderColor?: string | null;
   };
   isNewEvent?: boolean;
   isPending: boolean;
@@ -62,6 +64,8 @@ export function EventDesignerForm({
   const [editButtonColor, setEditButtonColor] = React.useState(initialValues?.buttonColor || "#451A03");
   const [editButtonTextColor, setEditButtonTextColor] = React.useState(initialValues?.buttonTextColor || "#FFFFFF");
   const [editBgColor, setEditBgColor] = React.useState(initialValues?.bgColor || "#FAF9F5");
+  const [editPreheaderColor, setEditPreheaderColor] = React.useState(initialValues?.preheaderColor || "");
+  const [editSubheaderColor, setEditSubheaderColor] = React.useState(initialValues?.subheaderColor || "");
 
   // Visual collapse and upload helper states
   const [designCardExpanded, setDesignCardExpanded] = React.useState(true);
@@ -87,6 +91,8 @@ export function EventDesignerForm({
         setEditButtonColor(initialValues.buttonColor || "#451A03");
         setEditButtonTextColor(initialValues.buttonTextColor || "#FFFFFF");
         setEditBgColor(initialValues.bgColor || "#FAF9F5");
+        setEditPreheaderColor(initialValues.preheaderColor || "");
+        setEditSubheaderColor(initialValues.subheaderColor || "");
         setPendingCoverFile(null);
       }, 0);
       return () => clearTimeout(timer);
@@ -96,11 +102,7 @@ export function EventDesignerForm({
   // Preset switching helper
   const handleTemplateChange = (tplId: string) => {
     setEditTemplate(tplId);
-    const defaults = getTemplateColors(tplId);
-    setEditTextColor(defaults.textColor);
-    setEditButtonColor(defaults.buttonColor);
-    setEditButtonTextColor(defaults.buttonTextColor);
-    setEditBgColor(defaults.bgColor);
+    // Don't reset layout colors here per request: "just change the theme without changing color"
   };
 
   const handleResetColors = () => {
@@ -109,6 +111,8 @@ export function EventDesignerForm({
     setEditButtonColor(defaults.buttonColor);
     setEditButtonTextColor(defaults.buttonTextColor);
     setEditBgColor(defaults.bgColor);
+    setEditPreheaderColor("");
+    setEditSubheaderColor("");
   };
 
   const handleCoverChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -223,6 +227,8 @@ export function EventDesignerForm({
         buttonColor: editButtonColor,
         buttonTextColor: editButtonTextColor,
         bgColor: editBgColor,
+        preheaderColor: editPreheaderColor || null,
+        subheaderColor: editSubheaderColor || null,
       });
     } catch (err) {
       const error = err as Error;
@@ -249,7 +255,9 @@ export function EventDesignerForm({
       editTextColor !== (initialValues.textColor || "#0F172A") ||
       editButtonColor !== (initialValues.buttonColor || "#451A03") ||
       editButtonTextColor !== (initialValues.buttonTextColor || "#FFFFFF") ||
-      editBgColor !== (initialValues.bgColor || "#FAF9F5")
+      editBgColor !== (initialValues.bgColor || "#FAF9F5") ||
+      editPreheaderColor !== (initialValues.preheaderColor || "") ||
+      editSubheaderColor !== (initialValues.subheaderColor || "")
     );
   }, [
     isNewEvent,
@@ -266,6 +274,8 @@ export function EventDesignerForm({
     editButtonColor,
     editButtonTextColor,
     editBgColor,
+    editPreheaderColor,
+    editSubheaderColor,
   ]);
 
   const layoutProps = {
@@ -290,6 +300,10 @@ export function EventDesignerForm({
     setEditButtonColor,
     editButtonTextColor,
     setEditButtonTextColor,
+    editPreheaderColor,
+    setEditPreheaderColor,
+    editSubheaderColor,
+    setEditSubheaderColor,
     handleResetColors,
     eventName,
     setEventName,

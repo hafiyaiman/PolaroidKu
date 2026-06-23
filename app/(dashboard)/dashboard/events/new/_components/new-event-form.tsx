@@ -35,6 +35,8 @@ export function NewEventForm() {
         buttonColor: values.buttonColor,
         buttonTextColor: values.buttonTextColor,
         bgColor: values.bgColor,
+        preheaderColor: values.preheaderColor,
+        subheaderColor: values.subheaderColor,
       });
 
       if (res.error) {

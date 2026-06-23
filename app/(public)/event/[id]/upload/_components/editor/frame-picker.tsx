@@ -15,7 +15,29 @@ export interface BorderItem {
 }
 
 export const SYSTEM_BORDERS: BorderItem[] = [
-  { id: "sys_polaroid", name: "Polaroid", imageKey: "", layoutType: "story_916", imageUrl: "" },
+  {
+    id: "sys_polaroid",
+    name: "Polaroid",
+    imageKey: "",
+    layoutType: "story_916",
+    imageUrl: "",
+  },
+  {
+    id: "sys_pink_floral",
+    name: "Pink Floral",
+    imageKey: "",
+    layoutType: "story_916",
+    photoAlign: "bottom",
+    imageUrl: "/frames/pink_roses_corner.png?v=3",
+  },
+  {
+    id: "sys_blue_floral",
+    name: "Blue Floral",
+    imageKey: "",
+    layoutType: "story_916",
+    photoAlign: "bottom",
+    imageUrl: "/frames/blue_flowers_corner.png?v=3",
+  },
 ];
 
 interface FramePickerProps {
@@ -38,7 +60,9 @@ export function FramePicker({ borders, selected, onSelect }: FramePickerProps) {
     <div className="space-y-2">
       <div className="flex items-center gap-1.5 px-1">
         <SparkleIcon className="size-3.5 text-yellow-400" weight="fill" />
-        <span className="text-[10px] font-bold text-zinc-300 uppercase tracking-wider">Select Frame</span>
+        <span className="text-[10px] font-bold text-zinc-300 uppercase tracking-wider">
+          Select Frame
+        </span>
       </div>
 
       <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none snap-x px-1">
@@ -56,7 +80,7 @@ export function FramePicker({ borders, selected, onSelect }: FramePickerProps) {
               onClick={() => onSelect(border)}
               className={cn(
                 "flex-shrink-0 snap-start flex flex-col items-center gap-1.5",
-                "cursor-pointer group transition-all duration-200"
+                "cursor-pointer group transition-all duration-200",
               )}
             >
               <div
@@ -65,7 +89,7 @@ export function FramePicker({ borders, selected, onSelect }: FramePickerProps) {
                   "flex items-center justify-center bg-zinc-800 transform group-hover:scale-105",
                   isSelected
                     ? "border-yellow-400 ring-2 ring-yellow-400/30 scale-110"
-                    : "border-zinc-700 hover:border-zinc-500"
+                    : "border-zinc-700 hover:border-zinc-500",
                 )}
               >
                 {proxiedUrl ? (
@@ -89,7 +113,7 @@ export function FramePicker({ borders, selected, onSelect }: FramePickerProps) {
               <span
                 className={cn(
                   "text-[9px] font-semibold w-[60px] text-center truncate leading-tight",
-                  isSelected ? "text-yellow-400" : "text-zinc-400"
+                  isSelected ? "text-yellow-400" : "text-zinc-400",
                 )}
               >
                 {border.name}

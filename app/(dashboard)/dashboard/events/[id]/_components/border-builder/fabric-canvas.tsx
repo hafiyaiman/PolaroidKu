@@ -2,6 +2,20 @@
 
 import * as React from "react";
 
+const safeDispose = (canvas: any) => {
+  if (!canvas) return;
+  try {
+    const result = canvas.dispose();
+    if (result && typeof result.catch === "function") {
+      result.catch((err: any) => {
+        console.warn("Fabric canvas async dispose error ignored:", err);
+      });
+    }
+  } catch (err) {
+    console.warn("Fabric canvas sync dispose error ignored:", err);
+  }
+};
+
 export interface FabricCanvasHandle {
   addText: () => void;
   addRect: () => void;
@@ -29,37 +43,126 @@ export interface FabricCanvasHandle {
   }>) => void;
   applyOpacity: (v: number) => void;
   setCanvasBgColor: (color: string) => void;
+  bringToFront: () => void;
+  bringForward: () => void;
+  sendBackward: () => void;
+  sendToBack: () => void;
 }
 
 interface FabricCanvasProps {
   width: number;
   height: number;
+  photoAlign: "top" | "center" | "bottom";
+  showOverlay: boolean;
   /** Multiplier applied on export so the PNG is at full Instagram resolution. Default: 2 */
   exportMultiplier?: number;
   onSelectionChange: (isText: boolean, isShape: boolean, hasSelection: boolean, opacity: number) => void;
 }
 
+const PHOTO_SLOT = {
+  w: 1022.4 / 3, // 340.8
+  h: 1354.7 / 3, // ~451.6
+  canvasW: 360,
+  canvasH: 640,
+};
+
+function getPhotoSlotY(canvasHeight: number, align: "top" | "center" | "bottom"): number {
+  const padding = 10;
+  switch (align) {
+    case "top":
+      return padding;
+    case "bottom":
+      return canvasHeight - PHOTO_SLOT.h - padding;
+    case "center":
+    default:
+      return (canvasHeight - PHOTO_SLOT.h) / 2;
+  }
+}
+
 export const FabricCanvas = React.forwardRef<FabricCanvasHandle, FabricCanvasProps>(
-  function FabricCanvas({ width, height, exportMultiplier = 2, onSelectionChange }, ref) {
+  function FabricCanvas(
+    { width, height, photoAlign, showOverlay, exportMultiplier = 2, onSelectionChange },
+    ref
+  ) {
     const canvasElRef = React.useRef<HTMLCanvasElement>(null);
     const containerRef = React.useRef<HTMLDivElement>(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const fabricRef = React.useRef<any>(null);
     const historyRef = React.useRef<string[]>([]);
     const historyIdxRef = React.useRef(-1);
+    const isHistoryLoadingRef = React.useRef(false);
     // Always reflect the latest multiplier without re-registering the handle
     const exportMultRef = React.useRef(exportMultiplier);
     React.useEffect(() => { exportMultRef.current = exportMultiplier; }, [exportMultiplier]);
 
+    const photoAlignRef = React.useRef(photoAlign);
+    React.useEffect(() => { photoAlignRef.current = photoAlign; }, [photoAlign]);
+
+    const showOverlayRef = React.useRef(showOverlay);
+    React.useEffect(() => { showOverlayRef.current = showOverlay; }, [showOverlay]);
+
     const saveHistory = React.useCallback(() => {
+      if (isHistoryLoadingRef.current) return;
       const canvas = fabricRef.current;
       if (!canvas) return;
-      const json = JSON.stringify(canvas.toJSON(['backgroundColor', 'isCanvasBgRect']));
+      const json = JSON.stringify(
+        canvas.toJSON([
+          "backgroundColor",
+          "isCanvasBgRect",
+          "isPhotoSlotRect",
+          "isPhotoSlotText",
+          "selectable",
+          "evented",
+          "hoverCursor",
+        ])
+      );
       // Truncate future if we undid
       historyRef.current = historyRef.current.slice(0, historyIdxRef.current + 1);
       historyRef.current.push(json);
       historyIdxRef.current = historyRef.current.length - 1;
     }, []);
+
+    // Sync photoAlign prop changes with canvas guide position
+    React.useEffect(() => {
+      const canvas = fabricRef.current;
+      if (!canvas) return;
+      const photoSlot = canvas.getObjects().find((obj: any) => obj.isPhotoSlotRect === true);
+      const photoText = canvas.getObjects().find((obj: any) => obj.isPhotoSlotText === true);
+      let changed = false;
+      if (photoSlot) {
+        photoSlot.set("top", getPhotoSlotY(height, photoAlign));
+        changed = true;
+      }
+      if (photoText) {
+        photoText.set("top", getPhotoSlotY(height, photoAlign) + PHOTO_SLOT.h / 2 - 20);
+        changed = true;
+      }
+      if (changed) {
+        canvas.requestRenderAll();
+        saveHistory();
+      }
+    }, [photoAlign, height, saveHistory]);
+
+    // Sync showOverlay prop changes with canvas guide visibility
+    React.useEffect(() => {
+      const canvas = fabricRef.current;
+      if (!canvas) return;
+      const photoSlot = canvas.getObjects().find((obj: any) => obj.isPhotoSlotRect === true);
+      const photoText = canvas.getObjects().find((obj: any) => obj.isPhotoSlotText === true);
+      let changed = false;
+      if (photoSlot) {
+        photoSlot.set("visible", showOverlay);
+        changed = true;
+      }
+      if (photoText) {
+        photoText.set("visible", showOverlay);
+        changed = true;
+      }
+      if (changed) {
+        canvas.requestRenderAll();
+        saveHistory();
+      }
+    }, [showOverlay, saveHistory]);
 
     // Initialize fabric.js canvas — guarded against React StrictMode double-mount
     React.useEffect(() => {
@@ -81,6 +184,7 @@ export const FabricCanvas = React.forwardRef<FabricCanvasHandle, FabricCanvasPro
       // (handles React StrictMode's unmount → remount cycle)
       if (fabricRef.current) {
         try { fabricRef.current.dispose(); } catch { /* ignore */ }
+        safeDispose(fabricRef.current);
         fabricRef.current = null;
       }
 
@@ -102,6 +206,7 @@ export const FabricCanvas = React.forwardRef<FabricCanvasHandle, FabricCanvasPro
         const el = canvasElRef.current as any;
         if (el._fc_instance) {
           try { el._fc_instance.dispose(); } catch { /* ignore */ }
+          safeDispose(el._fc_instance);
         }
 
         const canvas = new fabric.Canvas(canvasElRef.current, {
@@ -128,6 +233,52 @@ export const FabricCanvas = React.forwardRef<FabricCanvasHandle, FabricCanvasPro
         canvas.add(bgRect);
         canvas.sendObjectToBack(bgRect);
 
+        // Add the guest photo slot guide rect object
+        // Use originX='center' so left=width/2 guarantees horizontal centering
+        const slotTop = getPhotoSlotY(height, photoAlign);
+        const slotBorderRect = new fabric.Rect({
+          left: width / 2,
+          top: slotTop,
+          originX: "center",
+          originY: "top",
+          width: PHOTO_SLOT.w,
+          height: PHOTO_SLOT.h,
+          fill: "rgba(59, 130, 246, 0.06)",
+          stroke: "rgba(59, 130, 246, 0.7)",
+          strokeWidth: 2,
+          strokeDashArray: [6, 4],
+          selectable: false,
+          evented: false,
+          visible: showOverlay,
+          hoverCursor: "default",
+        });
+        (slotBorderRect as any).isPhotoSlotRect = true;
+
+        // Add the guest photo slot text label object
+        const slotText = new fabric.Textbox("Guest Photo Area\n(1022 x 1355 px)", {
+          left: width / 2,
+          top: slotTop + PHOTO_SLOT.h / 2 - 20,
+          originX: "center",
+          originY: "top",
+          width: PHOTO_SLOT.w,
+          fontSize: 14,
+          fontFamily: "Arial",
+          fill: "rgba(59, 130, 246, 0.7)",
+          textAlign: "center",
+          selectable: false,
+          editable: false,
+          evented: false,
+          visible: showOverlay,
+          hoverCursor: "default",
+        });
+        (slotText as any).isPhotoSlotText = true;
+
+        canvas.add(slotBorderRect);
+        canvas.add(slotText);
+        // Initially draw guide on top of the white background
+        canvas.bringObjectToFront(slotBorderRect);
+        canvas.bringObjectToFront(slotText);
+
         canvas.renderAll();
 
         fabricRef.current = canvas;
@@ -151,7 +302,6 @@ export const FabricCanvas = React.forwardRef<FabricCanvasHandle, FabricCanvasPro
           if (obj && (obj.type === "textbox" || obj.type === "i-text")) {
             obj.hiddenTextareaContainer = containerRef.current || undefined;
           }
-          saveHistory();
         });
 
         saveHistory();
@@ -169,6 +319,7 @@ export const FabricCanvas = React.forwardRef<FabricCanvasHandle, FabricCanvasPro
         historyIdxRef.current = -1;
         if (snap) {
           try { snap.dispose(); } catch { /* ignore */ }
+          safeDispose(snap);
         }
       };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -193,6 +344,7 @@ export const FabricCanvas = React.forwardRef<FabricCanvasHandle, FabricCanvasPro
         fabricRef.current?.add(t);
         fabricRef.current?.setActiveObject(t);
         fabricRef.current?.renderAll();
+        saveHistory();
       },
 
       addRect: async () => {
@@ -206,6 +358,7 @@ export const FabricCanvas = React.forwardRef<FabricCanvasHandle, FabricCanvasPro
         fabricRef.current?.add(r);
         fabricRef.current?.setActiveObject(r);
         fabricRef.current?.renderAll();
+        saveHistory();
       },
 
       addCircle: async () => {
@@ -219,6 +372,7 @@ export const FabricCanvas = React.forwardRef<FabricCanvasHandle, FabricCanvasPro
         fabricRef.current?.add(c);
         fabricRef.current?.setActiveObject(c);
         fabricRef.current?.renderAll();
+        saveHistory();
       },
 
       addLine: async () => {
@@ -230,6 +384,7 @@ export const FabricCanvas = React.forwardRef<FabricCanvasHandle, FabricCanvasPro
         fabricRef.current?.add(l);
         fabricRef.current?.setActiveObject(l);
         fabricRef.current?.renderAll();
+        saveHistory();
       },
 
       importImageFile: async (file: File) => {
@@ -242,6 +397,7 @@ export const FabricCanvas = React.forwardRef<FabricCanvasHandle, FabricCanvasPro
         fabricRef.current?.add(img);
         fabricRef.current?.setActiveObject(img);
         fabricRef.current?.renderAll();
+        saveHistory();
       },
 
       importImageUrl: async (url: string) => {
@@ -253,12 +409,15 @@ export const FabricCanvas = React.forwardRef<FabricCanvasHandle, FabricCanvasPro
         fabricRef.current?.add(img);
         fabricRef.current?.setActiveObject(img);
         fabricRef.current?.renderAll();
+        saveHistory();
       },
 
       undo: () => {
+        if (isHistoryLoadingRef.current) return;
         if (historyIdxRef.current <= 0) return;
         historyIdxRef.current--;
         const json = historyRef.current[historyIdxRef.current];
+        isHistoryLoadingRef.current = true;
         fabricRef.current?.loadFromJSON(json).then(() => {
           fabricRef.current?.getObjects().forEach((obj: any) => {
             if (obj.type === "textbox" || obj.type === "i-text") {
@@ -266,13 +425,16 @@ export const FabricCanvas = React.forwardRef<FabricCanvasHandle, FabricCanvasPro
             }
           });
           fabricRef.current?.renderAll();
+          isHistoryLoadingRef.current = false;
         });
       },
 
       redo: () => {
+        if (isHistoryLoadingRef.current) return;
         if (historyIdxRef.current >= historyRef.current.length - 1) return;
         historyIdxRef.current++;
         const json = historyRef.current[historyIdxRef.current];
+        isHistoryLoadingRef.current = true;
         fabricRef.current?.loadFromJSON(json).then(() => {
           fabricRef.current?.getObjects().forEach((obj: any) => {
             if (obj.type === "textbox" || obj.type === "i-text") {
@@ -280,6 +442,7 @@ export const FabricCanvas = React.forwardRef<FabricCanvasHandle, FabricCanvasPro
             }
           });
           fabricRef.current?.renderAll();
+          isHistoryLoadingRef.current = false;
         });
       },
 
@@ -298,15 +461,129 @@ export const FabricCanvas = React.forwardRef<FabricCanvasHandle, FabricCanvasPro
         saveHistory();
       },
 
+      bringToFront: () => {
+        const canvas = fabricRef.current;
+        if (!canvas) return;
+        const obj = canvas.getActiveObject();
+        if (!obj) return;
+        canvas.bringObjectToFront(obj);
+        // Keep background rect at the very bottom
+        const bgRect = canvas.getObjects().find((o: any) => o.isCanvasBgRect === true);
+        if (bgRect) canvas.sendObjectToBack(bgRect);
+        canvas.requestRenderAll();
+        saveHistory();
+      },
+
+      bringForward: () => {
+        const canvas = fabricRef.current;
+        if (!canvas) return;
+        const obj = canvas.getActiveObject();
+        if (!obj) return;
+        canvas.bringObjectForward(obj);
+        canvas.requestRenderAll();
+        saveHistory();
+      },
+
+      sendBackward: () => {
+        const canvas = fabricRef.current;
+        if (!canvas) return;
+        const obj = canvas.getActiveObject();
+        if (!obj) return;
+
+        // Keep above the background rect
+        const objects = canvas.getObjects();
+        const objIdx = objects.indexOf(obj);
+        const bgRect = objects.find((o: any) => o.isCanvasBgRect === true);
+        const bgIdx = bgRect ? objects.indexOf(bgRect) : -1;
+
+        if (objIdx > bgIdx + 1) {
+          canvas.sendObjectBackwards(obj);
+          canvas.requestRenderAll();
+          saveHistory();
+        }
+      },
+
+      sendToBack: () => {
+        const canvas = fabricRef.current;
+        if (!canvas) return;
+        const obj = canvas.getActiveObject();
+        if (!obj) return;
+
+        canvas.sendObjectToBack(obj);
+        // Move bgRect back to the absolute bottom
+        const bgRect = canvas.getObjects().find((o: any) => o.isCanvasBgRect === true);
+        if (bgRect) canvas.sendObjectToBack(bgRect);
+        canvas.requestRenderAll();
+        saveHistory();
+      },
+
       exportPNG: (multiplier?: number) => {
-        return new Promise<Blob>((res, rej) => {
-          const canvas = fabricRef.current;
-          if (!canvas) return rej(new Error("Canvas not ready"));
-          canvas.discardActiveObject();
-          canvas.renderAll();
-          const mult = multiplier ?? exportMultRef.current;
-          const dataUrl = canvas.toDataURL({ format: "png", multiplier: mult });
-          fetch(dataUrl).then((r) => r.blob()).then(res).catch(rej);
+        return new Promise<Blob>(async (res, rej) => {
+          try {
+            const canvas = fabricRef.current;
+            if (!canvas) return rej(new Error("Canvas not ready"));
+
+            const activeObj = canvas.getActiveObject();
+            canvas.discardActiveObject();
+
+            // Locate the photo slot guide objects
+            const objects = canvas.getObjects();
+            const photoSlotIdx = objects.findIndex((obj: any) => obj.isPhotoSlotRect === true);
+            const photoSlot = photoSlotIdx !== -1 ? objects[photoSlotIdx] : null;
+            const photoText = objects.find((obj: any) => obj.isPhotoSlotText === true);
+
+            const photoSlotVisible = photoSlot ? photoSlot.visible : false;
+            const photoTextVisible = photoText ? photoText.visible : false;
+
+            // Create and insert destination-out mask at photo slot guide position
+            let mask: any = null;
+            if (photoSlotIdx !== -1 && photoSlot) {
+              const { Rect } = await import("fabric");
+              mask = new Rect({
+                left: photoSlot.left,
+                top: photoSlot.top,
+                originX: photoSlot.originX,
+                originY: photoSlot.originY,
+                width: photoSlot.width,
+                height: photoSlot.height,
+                fill: "black",
+                globalCompositeOperation: "destination-out",
+                objectCaching: false,
+                selectable: false,
+                evented: false,
+              });
+
+              // In Fabric v6/v7, signature is canvas.insertAt(index, ...objects)
+              canvas.insertAt(photoSlotIdx, mask);
+            }
+
+            // Hide the guest photo guides during export
+            if (photoSlot) photoSlot.set("visible", false);
+            if (photoText) photoText.set("visible", false);
+            canvas.renderAll();
+
+            // Export the Fabric canvas to a data URL (will have transparent cutout)
+            const mult = multiplier ?? exportMultRef.current;
+            const dataUrl = canvas.toDataURL({ format: "png", multiplier: mult });
+
+            // Clean up mask
+            if (mask) {
+              canvas.remove(mask);
+            }
+
+            // Restore guides and active object
+            if (photoSlot) photoSlot.set("visible", photoSlotVisible);
+            if (photoText) photoText.set("visible", photoTextVisible);
+            if (activeObj) canvas.setActiveObject(activeObj);
+            canvas.renderAll();
+
+            fetch(dataUrl)
+              .then((r) => r.blob())
+              .then(res)
+              .catch(rej);
+          } catch (err) {
+            rej(err);
+          }
         });
       },
 
@@ -367,7 +644,16 @@ export const FabricCanvas = React.forwardRef<FabricCanvasHandle, FabricCanvasPro
         if (!canvas) return;
         
         const { Rect } = await import("fabric");
-        let bgRect = canvas.getObjects().find((obj: any) => obj.isCanvasBgRect);
+        let bgRect = canvas.getObjects().find((obj: any) => 
+          obj.isCanvasBgRect === true || (
+            obj.type === "rect" && 
+            obj.left === 0 && 
+            obj.top === 0 && 
+            obj.width === width && 
+            obj.height === height && 
+            !obj.selectable
+          )
+        );
         if (!bgRect) {
           bgRect = new Rect({
             left: 0,
@@ -379,7 +665,7 @@ export const FabricCanvas = React.forwardRef<FabricCanvasHandle, FabricCanvasPro
             evented: false,
             hoverCursor: "default",
           });
-          bgRect.isCanvasBgRect = true;
+          (bgRect as any).isCanvasBgRect = true;
           canvas.add(bgRect);
           canvas.sendObjectToBack(bgRect);
         } else {

@@ -49,16 +49,21 @@ export function SlotCanvas({
   const hasPhoto = slot.file !== null;
   const isImageLandscape = slot.aspectRatio > slotAspectRatio;
 
-  const { handleMouseDown, handleTouchStart, handleTouchMove, handleTouchEnd, handleWheel } =
-    useSlotGestures({
-      slotIdx: idx,
-      hasPhoto,
-      zoom: slot.zoom,
-      offset: slot.offset,
-      onOffsetChange,
-      onZoomChange,
-      onSelect,
-    });
+  const {
+    handleMouseDown,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
+    handleWheel,
+  } = useSlotGestures({
+    slotIdx: idx,
+    hasPhoto,
+    zoom: slot.zoom,
+    offset: slot.offset,
+    onOffsetChange,
+    onZoomChange,
+    onSelect,
+  });
 
   return (
     <div
@@ -74,7 +79,9 @@ export function SlotCanvas({
         hasPhoto
           ? "cursor-grab active:cursor-grabbing"
           : "cursor-pointer bg-zinc-800 border-2 border-dashed border-zinc-600 flex flex-col items-center justify-center hover:bg-zinc-750",
-        showSelectionRing && isSelected && "ring-2 ring-yellow-400 ring-inset z-10"
+        showSelectionRing &&
+          isSelected &&
+          "ring-2 ring-yellow-400 ring-inset z-10",
       )}
       style={{ touchAction: "none" }}
     >
@@ -100,11 +107,14 @@ export function SlotCanvas({
           />
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); onRemove(idx); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove(idx);
+            }}
             className={cn(
               "absolute top-1.5 right-1.5 size-6 bg-black/70 text-white rounded-full",
               "flex items-center justify-center z-20 pointer-events-auto",
-              "hover:bg-black active:scale-90 transition-all border-none shadow-md"
+              "hover:bg-black active:scale-90 transition-all border-none shadow-md",
             )}
           >
             <TrashIcon className="size-3" />
@@ -113,7 +123,9 @@ export function SlotCanvas({
       ) : (
         <div className="flex flex-col items-center gap-1 text-zinc-500 pointer-events-none">
           <CameraIcon className="size-6" />
-          <span className="text-[9px] font-bold uppercase tracking-wider">Photo {idx + 1}</span>
+          <span className="text-[9px] font-bold uppercase tracking-wider">
+            Photo {idx + 1}
+          </span>
           <span className="text-[8px]">Tap to add</span>
         </div>
       )}

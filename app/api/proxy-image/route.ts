@@ -8,7 +8,12 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const response = await fetch(url);
+    let targetUrl = url;
+    if (url.startsWith("/")) {
+      targetUrl = new URL(url, request.nextUrl.origin).toString();
+    }
+
+    const response = await fetch(targetUrl);
     if (!response.ok) {
       return new NextResponse(`Failed to fetch image: ${response.statusText}`, { status: response.status });
     }

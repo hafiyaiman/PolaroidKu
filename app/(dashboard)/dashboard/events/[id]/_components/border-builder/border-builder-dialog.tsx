@@ -45,27 +45,30 @@ const LAYOUTS = [
 ];
 
 // Photo slot dimensions at canvas resolution (export ÷ 3)
-// These match the cutout in editor-shell.tsx: exportX=30.6, exportW=1022.4, exportH=1354.7
+// These match the cutout in editor-shell.tsx: exportX=28.8, exportW=1022.4, exportH=1354.7
 const PHOTO_SLOT = {
-  x: 30.6 / 3,       // 10.2
-  w: 1022.4 / 3,     // 340.8
-  h: 1354.7 / 3,     // ~451.6
+  w: 1022.4 / 3, // 340.8
+  h: 1354.7 / 3, // ~451.6
   canvasW: 360,
   canvasH: 640,
 };
 
+function getPhotoSlotX(canvasWidth: number): number {
+  return (canvasWidth - PHOTO_SLOT.w) / 2;
+}
+
 type PhotoAlign = "top" | "center" | "bottom";
 
-function getPhotoSlotY(align: PhotoAlign): number {
+function getPhotoSlotY(canvasHeight: number, align: PhotoAlign): number {
   const padding = 10; // small margin from edges
   switch (align) {
     case "top":
       return padding;
     case "bottom":
-      return PHOTO_SLOT.canvasH - PHOTO_SLOT.h - padding;
+      return canvasHeight - PHOTO_SLOT.h - padding;
     case "center":
     default:
-      return (PHOTO_SLOT.canvasH - PHOTO_SLOT.h) / 2;
+      return (canvasHeight - PHOTO_SLOT.h) / 2;
   }
 }
 
@@ -244,7 +247,8 @@ export function BorderBuilderDialog({
       }
     } catch (err) {
       console.error(err);
-      toast.error("Failed to save frame.");
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to save frame: ${msg}`);
     } finally {
       setIsExporting(false);
     }
@@ -262,7 +266,7 @@ export function BorderBuilderDialog({
 
         <div className="flex flex-1 min-h-0 overflow-hidden">
           {/* Left sidebar — controls */}
-          <div className="w-64 border-r border-border/40 flex flex-col gap-4 p-4 overflow-y-auto shrink-0">
+          <div className="w-md border-r border-border/40 flex flex-col gap-4 p-4 overflow-y-auto shrink-0">
             {/* Layout Info */}
             <div className="space-y-1">
               <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -349,14 +353,29 @@ export function BorderBuilderDialog({
                 Photo Slot Position
               </Label>
               <p className="text-[9px] text-muted-foreground/70 leading-relaxed">
-                Shows where the guest&apos;s photo will appear. The overlay cannot be clicked or moved.
+                Shows where the guest&apos;s photo will appear. The overlay
+                cannot be clicked or moved.
               </p>
               <div className="flex gap-1">
-                {([
-                  { id: "top" as PhotoAlign, icon: ArrowUpIcon, label: "Top" },
-                  { id: "center" as PhotoAlign, icon: ArrowsVerticalIcon, label: "Center" },
-                  { id: "bottom" as PhotoAlign, icon: ArrowDownIcon, label: "Bottom" },
-                ] as const).map(({ id, icon: Icon, label }) => (
+                {(
+                  [
+                    {
+                      id: "top" as PhotoAlign,
+                      icon: ArrowUpIcon,
+                      label: "Top",
+                    },
+                    {
+                      id: "center" as PhotoAlign,
+                      icon: ArrowsVerticalIcon,
+                      label: "Center",
+                    },
+                    {
+                      id: "bottom" as PhotoAlign,
+                      icon: ArrowDownIcon,
+                      label: "Bottom",
+                    },
+                  ] as const
+                ).map(({ id, icon: Icon, label }) => (
                   <Button
                     key={id}
                     type="button"
@@ -368,7 +387,10 @@ export function BorderBuilderDialog({
                       photoAlign === id && "shadow-sm",
                     )}
                   >
-                    <Icon className="size-3" weight={photoAlign === id ? "bold" : "regular"} />
+                    <Icon
+                      className="size-3"
+                      weight={photoAlign === id ? "bold" : "regular"}
+                    />
                     {label}
                   </Button>
                 ))}
@@ -474,6 +496,10 @@ export function BorderBuilderDialog({
                 onUndo={() => canvasRef.current?.undo()}
                 onRedo={() => canvasRef.current?.redo()}
                 onDeleteSelected={() => canvasRef.current?.deleteSelected()}
+                onBringToFront={() => canvasRef.current?.bringToFront()}
+                onBringForward={() => canvasRef.current?.bringForward()}
+                onSendBackward={() => canvasRef.current?.sendBackward()}
+                onSendToBack={() => canvasRef.current?.sendToBack()}
                 opacity={opacity}
                 onOpacityChange={handleOpacityChange}
                 hasSelection={hasSelection}
@@ -481,41 +507,19 @@ export function BorderBuilderDialog({
             </div>
 
             <div className="flex-1 overflow-auto flex items-center justify-center p-6 bg-zinc-900">
-              <div className="relative" style={{ width: layout.w, height: layout.h }}>
+              <div
+                className="relative"
+                style={{ width: layout.w, height: layout.h }}
+              >
                 <FabricCanvas
                   ref={canvasRef}
                   width={layout.w}
                   height={layout.h}
+                  photoAlign={photoAlign}
+                  showOverlay={showOverlay}
                   exportMultiplier={layout.exportMult}
                   onSelectionChange={handleSelectionChange}
                 />
-                {/* Photo slot overlay — always on top, non-interactive */}
-                {showOverlay && (
-                  <div
-                    className="absolute rounded-lg"
-                    style={{
-                      pointerEvents: "none",
-                      left: PHOTO_SLOT.x,
-                      top: getPhotoSlotY(photoAlign),
-                      width: PHOTO_SLOT.w,
-                      height: PHOTO_SLOT.h,
-                      border: "2px dashed rgba(59,130,246,0.7)",
-                      background: "rgba(59,130,246,0.06)",
-                      zIndex: 50,
-                      transition: "top 0.3s ease",
-                    }}
-                  >
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 select-none">
-                      <ImageIcon className="size-6 text-blue-400/60" />
-                      <span className="text-[10px] font-semibold text-blue-400/70 uppercase tracking-wider">
-                        Guest Photo Area
-                      </span>
-                      <span className="text-[8px] text-blue-400/50">
-                        {Math.round(PHOTO_SLOT.w * 3)} × {Math.round(PHOTO_SLOT.h * 3)} px
-                      </span>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>

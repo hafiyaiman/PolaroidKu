@@ -10,46 +10,19 @@ import {
   PaperPlaneRightIcon,
   SpinnerGapIcon,
 } from "@phosphor-icons/react";
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-const CANVAS_SIZE: Record<string, { width: number; height: number }> = {
-  story_916: { width: 1080, height: 1920 },
-};
-
-// Reference display canvas dimensions (design basis)
-const REF_W = 360;
-const REF_H = 640;
-
-// Photo slot at reference resolution
-const REF_SLOT = {
-  x: 10.2,          // 30.6 / 3
-  w: 340.8,         // 1022.4 / 3
-  h: 451.6,         // 1354.7 / 3
-};
-
-// Photo slot dimensions at export resolution
-const SLOT_EXPORT = { x: 30.6, w: 1022.4, h: 1354.7 };
-
-// Calculate photo slot Y position at export resolution based on alignment
-function getExportSlotY(photoAlign: string): number {
-  const padding = 30; // ~10px at display resolution × 3
-  switch (photoAlign) {
-    case "top":
-      return padding;
-    case "bottom":
-      return 1920 - SLOT_EXPORT.h - padding;
-    case "center":
-    default:
-      return (1920 - SLOT_EXPORT.h) / 2;
-  }
-}
-
-// Scale export-resolution slot Y to a given display canvas height
-function getDisplaySlotY(photoAlign: string, canvasH: number = REF_H): number {
-  const exportY = getExportSlotY(photoAlign);
-  // Scale from export (1920) to display canvas height
-  return (exportY / 1920) * canvasH;
-}
+import {
+  PinkFloralFramePreview,
+  BlueFloralFramePreview,
+  getDateCaption,
+} from "@/components/frames/floral-frames";
+import {
+  REF_W,
+  REF_H,
+  REF_SLOT,
+  getDisplaySlotY,
+  clampOffset,
+  buildComposite,
+} from "./composite-renderer";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface EditorShellProps {
@@ -57,6 +30,8 @@ interface EditorShellProps {
   borders: BorderItem[];
   customButtonBg?: string;
   customButtonText?: string;
+  eventName?: string;
+  eventDate?: string;
   onSubmit: (data: {
     file: Blob;
     guestName: string;
@@ -67,129 +42,6 @@ interface EditorShellProps {
   uploadProgress: number;
 }
 
-// ── Canvas merge ──────────────────────────────────────────────────────────────
-async function loadImg(url: string): Promise<HTMLImageElement> {
-  return new Promise((res, rej) => {
-    const img = new window.Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => res(img);
-    img.onerror = rej;
-    img.src = url;
-  });
-}
-
-function clampOffset(
-  offset: { x: number; y: number },
-  zoom: number,
-  imageAspect: number,
-  slotW: number,
-  slotH: number,
-) {
-  const slotAspect = slotW / slotH;
-  const isLandscape = imageAspect > slotAspect;
-
-  const baseW = isLandscape ? slotH * imageAspect : slotW;
-  const baseH = isLandscape ? slotH : slotW / imageAspect;
-
-  const imgW = baseW * zoom;
-  const imgH = baseH * zoom;
-
-  const maxX = Math.max(0, (imgW - slotW) / 2);
-  const maxY = Math.max(0, (imgH - slotH) / 2);
-
-  return {
-    x: Math.min(maxX, Math.max(-maxX, offset.x)),
-    y: Math.min(maxY, Math.max(-maxY, offset.y)),
-  };
-}
-
-async function buildComposite(
-  slots: PhotoSlotState[],
-  layoutType: string,
-  borderUrl: string,
-  isPolaroidSystem: boolean,
-  photoCount: number,
-  photoAlign: string,
-): Promise<Blob> {
-  const { width, height } = CANVAS_SIZE[layoutType] ?? CANVAS_SIZE.story_916;
-  const cvs = document.createElement("canvas");
-  cvs.width = width;
-  cvs.height = height;
-  const ctx = cvs.getContext("2d")!;
-
-  // Fill canvas with black background
-  ctx.fillStyle = "#000000";
-  ctx.fillRect(0, 0, width, height);
-
-  // Cutout slot position at export resolution (1080x1920)
-  const exportX = SLOT_EXPORT.x;
-  const exportY = getExportSlotY(photoAlign);
-  const exportW = SLOT_EXPORT.w;
-  const exportH = SLOT_EXPORT.h;
-
-  // Subtract gaps (18px export = 6px display)
-  const gapSize = 18;
-  const totalGapsHeight = (photoCount - 1) * gapSize;
-  const slotH = (exportH - totalGapsHeight) / photoCount;
-  const slotAspect = exportW / slotH;
-
-  // 1. Draw frame background first
-  if (borderUrl) {
-    try {
-      const fr = await loadImg(
-        `/api/proxy-image?url=${encodeURIComponent(borderUrl)}`,
-      );
-      ctx.drawImage(fr, 0, 0, width, height);
-    } catch {
-      console.warn("Frame overlay failed to load");
-    }
-  } else if (isPolaroidSystem) {
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, width, height);
-  }
-
-  // 2. Draw photo slots on top of the frame background
-  for (let idx = 0; idx < photoCount; idx++) {
-    const slot = slots[idx];
-    if (slot?.previewUrl) {
-      try {
-        const img = await loadImg(slot.previewUrl);
-        const isLandscape = img.naturalWidth / img.naturalHeight > slotAspect;
-        const baseW = isLandscape
-          ? (slotH / img.naturalHeight) * img.naturalWidth
-          : exportW;
-        const baseH = isLandscape
-          ? slotH
-          : (exportW / img.naturalWidth) * img.naturalHeight;
-        const sw = baseW * slot.zoom;
-        const sh = baseH * slot.zoom;
-
-        const y = exportY + idx * (slotH + gapSize);
-        const dx = exportX + (exportW - sw) / 2 + slot.offset.x * 3;
-        const dy = y + (slotH - sh) / 2 + slot.offset.y * 3;
-
-        ctx.save();
-        ctx.beginPath();
-        // Square/sharp corners for the image slot (rounded-none)
-        ctx.rect(exportX, y, exportW, slotH);
-        ctx.clip();
-        ctx.drawImage(img, dx, dy, sw, sh);
-        ctx.restore();
-      } catch (err) {
-        console.error("Failed to load/draw slot image", err);
-      }
-    }
-  }
-
-  return new Promise<Blob>((res, rej) =>
-    cvs.toBlob(
-      (b) => (b ? res(b) : rej(new Error("toBlob failed"))),
-      "image/jpeg",
-      0.92,
-    ),
-  );
-}
-
 // ── Step enum ─────────────────────────────────────────────────────────────────
 type Step = "compose" | "details";
 
@@ -198,6 +50,8 @@ export function EditorShell({
   borders,
   customButtonBg,
   customButtonText,
+  eventName,
+  eventDate,
   onSubmit,
   onClose,
   isUploading,
@@ -278,6 +132,18 @@ export function EditorShell({
     setActiveSlot(0);
   }, [photoCount]);
 
+  // Auto-change photoCount based on the selected border template
+  React.useEffect(() => {
+    if (
+      selectedBorder.id === "sys_pink_floral" ||
+      selectedBorder.id === "sys_blue_floral"
+    ) {
+      setPhotoCount(3);
+    } else if (selectedBorder.id === "sys_polaroid") {
+      setPhotoCount(1);
+    }
+  }, [selectedBorder.id]);
+
   const handleSlotClick = (idx: number) => {
     pendingSlotRef.current = idx;
     fileInputRef.current?.click();
@@ -333,6 +199,8 @@ export function EditorShell({
         selectedBorder.id === "sys_polaroid",
         photoCount,
         selectedBorder.photoAlign || "center",
+        eventName || "",
+        eventDate || "",
       );
       await onSubmit({ file: blob, guestName, message });
     } catch (err) {
@@ -436,7 +304,7 @@ export function EditorShell({
 
             {/* Composition area — dynamically sized */}
             <div
-              className="relative overflow-hidden shadow-2xl bg-zinc-950 border border-zinc-900 shrink-0 select-none"
+              className="relative overflow-hidden shadow-2xl bg-white border border-zinc-900 shrink-0 select-none"
               style={{
                 width: canvasSize.w,
                 height: canvasSize.h,
@@ -444,8 +312,11 @@ export function EditorShell({
               }}
             >
               {/* Photo slots container — scaled proportionally */}
+              {/* Custom frames: photos at z-10, frame PNG (with transparent hole) at z-20 on top.
+                  System frames: photos at z-20, above the background gradient overlays at z-20 which
+                  are drawn for decoration and don't have a transparent cutout. */}
               <div
-                className="absolute flex flex-col z-20"
+                className={`absolute flex flex-col ${!selectedBorder.id.startsWith("sys_") ? "z-10" : "z-20"}`}
                 style={{
                   left: slotX,
                   top: getDisplaySlotY(
@@ -518,30 +389,53 @@ export function EditorShell({
                 })}
               </div>
 
-              {/* Frame overlay (custom PNG) */}
-              {selectedBorder.imageUrl && (
-                <img
-                  src={`/api/proxy-image?url=${encodeURIComponent(selectedBorder.imageUrl)}`}
-                  alt="Frame"
-                  className="absolute inset-0 w-full h-full object-fill pointer-events-none z-10"
-                  draggable={false}
+              {/* Frame overlay (custom PNG) - z-20 so it renders ON TOP of photos (z-10).
+                   The exported frame PNG has a transparent hole where the photo shows through. */}
+              {selectedBorder.imageUrl &&
+                !selectedBorder.id.startsWith("sys_") && (
+                  <img
+                    src={`/api/proxy-image?url=${encodeURIComponent(selectedBorder.imageUrl)}`}
+                    alt="Frame"
+                    className="absolute inset-0 w-full h-full object-fill pointer-events-none z-20"
+                    draggable={false}
+                  />
+                )}
+              {/* System frame overlays — also z-20 so they render on top of photo slots (z-10) */}
+              {selectedBorder.id === "sys_polaroid" && (
+                <div className="absolute inset-0 w-full h-full bg-white pointer-events-none z-0" />
+              )}
+              {selectedBorder.id === "sys_pink_floral" && (
+                <PinkFloralFramePreview
+                  eventName={eventName || ""}
+                  eventDate={eventDate || ""}
+                  scaleX={scaleX}
+                  scaleY={scaleY}
+                  width={canvasSize.w}
+                  height={canvasSize.h}
                 />
               )}
-              {/* System frame overlays */}
-              {!selectedBorder.imageUrl &&
-                selectedBorder.id === "sys_polaroid" && (
-                  <div className="absolute inset-0 w-full h-full bg-white pointer-events-none z-10" />
-                )}
+              {selectedBorder.id === "sys_blue_floral" && (
+                <BlueFloralFramePreview
+                  eventName={eventName || ""}
+                  eventDate={eventDate || ""}
+                  scaleX={scaleX}
+                  scaleY={scaleY}
+                  width={canvasSize.w}
+                  height={canvasSize.h}
+                />
+              )}
             </div>
           </div>
 
           {/* ── BOTTOM — Instagram style ─────────────────────────────────────── */}
           <div className="shrink-0 pb-safe-bottom">
             {/* Hint */}
-            <p className={cn(
-              "text-center text-[10px] mb-1.5 transition-all",
-              !hasAllFilled ? "text-zinc-500 animate-pulse" : "text-zinc-600",
-            )}>
+            <p
+              className={cn(
+                "text-center text-[10px] mb-1.5 transition-all",
+                !hasAllFilled ? "text-zinc-500 animate-pulse" : "text-zinc-600",
+              )}
+            >
               {!hasAllFilled
                 ? `${emptyCount} slot${emptyCount > 1 ? "s" : ""} remaining — tap 📷 to add`
                 : "Drag to reposition · Pinch or scroll to zoom"}

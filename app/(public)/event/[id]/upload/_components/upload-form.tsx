@@ -247,6 +247,8 @@ export function UploadForm({
       borders={initialBorders}
       customButtonBg={customButtonBg}
       customButtonText={customButtonText}
+      eventName={eventData.name}
+      eventDate={eventData.date}
       onSubmit={handleEditorSubmit}
       onClose={() => setIsUploadOpen(false)}
       isUploading={isUploading}

@@ -13,6 +13,10 @@ import {
   ArrowCounterClockwiseIcon,
   ArrowClockwiseIcon,
   TrashIcon,
+  ArrowLineUpIcon,
+  ArrowUpIcon,
+  ArrowDownIcon,
+  ArrowLineDownIcon,
 } from "@phosphor-icons/react";
 
 interface BuilderToolbarProps {
@@ -24,6 +28,10 @@ interface BuilderToolbarProps {
   onUndo: () => void;
   onRedo: () => void;
   onDeleteSelected: () => void;
+  onBringToFront?: () => void;
+  onBringForward?: () => void;
+  onSendBackward?: () => void;
+  onSendToBack?: () => void;
   opacity: number;
   onOpacityChange: (v: number) => void;
   hasSelection: boolean;
@@ -66,6 +74,10 @@ export function BuilderToolbar({
   onUndo,
   onRedo,
   onDeleteSelected,
+  onBringToFront,
+  onBringForward,
+  onSendBackward,
+  onSendToBack,
   opacity,
   onOpacityChange,
   hasSelection,
@@ -98,6 +110,33 @@ export function BuilderToolbar({
         onClick={onDeleteSelected}
         disabled={!hasSelection}
       />
+
+      {/* Layer controls */}
+      {hasSelection && (
+        <>
+          <div className="h-5 w-px bg-border/40 mx-1" />
+          <ToolBtn
+            icon={ArrowLineUpIcon}
+            label="Bring to Front"
+            onClick={onBringToFront!}
+          />
+          <ToolBtn
+            icon={ArrowUpIcon}
+            label="Bring Forward"
+            onClick={onBringForward!}
+          />
+          <ToolBtn
+            icon={ArrowDownIcon}
+            label="Send Backward"
+            onClick={onSendBackward!}
+          />
+          <ToolBtn
+            icon={ArrowLineDownIcon}
+            label="Send to Back"
+            onClick={onSendToBack!}
+          />
+        </>
+      )}
 
       {/* Opacity (when selection active) */}
       {hasSelection && (

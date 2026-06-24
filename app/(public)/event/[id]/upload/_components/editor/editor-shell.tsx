@@ -9,6 +9,8 @@ import {
   XIcon,
   PaperPlaneRightIcon,
   SpinnerGapIcon,
+  CameraRotateIcon,
+  ImageIcon,
 } from "@phosphor-icons/react";
 import {
   PinkFloralFramePreview,
@@ -74,6 +76,52 @@ export function EditorShell({
   const [message, setMessage] = React.useState("");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const pendingSlotRef = React.useRef(0);
+
+  const [cameraStream, setCameraStream] = React.useState<MediaStream | null>(null);
+  const [facingMode, setFacingMode] = React.useState<"user" | "environment">("user");
+  const [cameraError, setCameraError] = React.useState<string | null>(null);
+
+  // Start/stop camera stream
+  React.useEffect(() => {
+    let active = true;
+    let localStream: MediaStream | null = null;
+
+    async function startCamera() {
+      if (step !== "compose") return;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: facingMode,
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        });
+        if (!active) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        localStream = stream;
+        setCameraStream(stream);
+        setCameraError(null);
+      } catch (err) {
+        console.error("Camera access error:", err);
+        if (active) {
+          setCameraError("Camera access denied or unavailable.");
+        }
+      }
+    }
+
+    startCamera();
+
+    return () => {
+      active = false;
+      if (localStream) {
+        localStream.getTracks().forEach((track) => track.stop());
+      }
+      setCameraStream(null);
+    };
+  }, [step, facingMode]);
 
   // Measure actual canvas container size for responsive scaling
   const viewportRef = React.useRef<HTMLDivElement>(null);
@@ -185,6 +233,70 @@ export function EditorShell({
     });
   };
 
+  const capturePhoto = () => {
+    if (!cameraStream) {
+      toast.error("Camera not active.");
+      return;
+    }
+    const video = document.querySelector(`[data-slot-idx="${activeSlot}"] video`) as HTMLVideoElement | null;
+    if (!video) {
+      toast.error("Camera feed not ready.");
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth || 1080;
+    canvas.height = video.videoHeight || 1920;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    if (facingMode === "user") {
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+    }
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const file = new File([blob], `capture-${activeSlot}-${Date.now()}.jpg`, {
+        type: "image/jpeg",
+      });
+      const url = URL.createObjectURL(file);
+      
+      setSlots((prev) => {
+        const next = [...prev];
+        next[activeSlot] = {
+          file,
+          previewUrl: url,
+          zoom: 1,
+          offset: { x: 0, y: 0 },
+          aspectRatio: canvas.width / canvas.height,
+        };
+        return next;
+      });
+
+      // Find next empty slot
+      const tempSlots = [...slots];
+      tempSlots[activeSlot] = { file } as any;
+      const nextEmpty = tempSlots.findIndex((s, idx) => idx < photoCount && !s.file);
+      if (nextEmpty !== -1) {
+        setActiveSlot(nextEmpty);
+      }
+      
+      toast.success(`Photo ${activeSlot + 1} captured!`);
+    }, "image/jpeg", 0.95);
+  };
+
+  const toggleCamera = () => {
+    setFacingMode((prev) => (prev === "user" ? "environment" : "user"));
+  };
+
+  const handleGalleryImportClick = () => {
+    pendingSlotRef.current = activeSlot;
+    fileInputRef.current?.click();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!guestName.trim()) {
@@ -219,7 +331,6 @@ export function EditorShell({
         ref={fileInputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         className="hidden"
         onChange={handleFileSelected}
       />
@@ -383,6 +494,10 @@ export function EditorShell({
                         }
                         onRemove={handleRemoveSlot}
                         onSelect={setActiveSlot}
+                        cameraStream={cameraStream}
+                        facingMode={facingMode}
+                        cameraError={cameraError}
+                        onCapture={capturePhoto}
                       />
                     </div>
                   );
@@ -487,49 +602,47 @@ export function EditorShell({
               })}
             </div>
 
-            {/* Bottom action bar — Instagram-style */}
-            <div className="flex items-center justify-between px-6 py-2 border-t border-zinc-900">
-              {/* Close */}
+            {/* Bottom action bar */}
+            <div className="flex items-center justify-between px-6 py-4 border-t border-zinc-900 bg-black/80 backdrop-blur-md shrink-0">
+              {/* Bottom Left: Gallery Import */}
               <button
                 type="button"
-                onClick={onClose}
-                className="size-10 rounded-lg border border-zinc-700 bg-zinc-900 flex items-center justify-center text-zinc-400 active:scale-90 transition-all"
+                onClick={handleGalleryImportClick}
+                className="flex flex-col items-center justify-center gap-1 text-zinc-400 hover:text-white active:text-white active:scale-95 transition-all cursor-pointer select-none"
               >
-                <XIcon className="size-4" />
+                <div className="size-11 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center hover:bg-zinc-850 transition-colors">
+                  <ImageIcon className="size-5" />
+                </div>
+                <span className="text-[10px] font-semibold tracking-wide">Gallery</span>
               </button>
 
-              {/* Big center add button */}
+              {/* Bottom Center: Capture Button */}
               <button
                 type="button"
-                onClick={() => {
-                  const firstEmpty = slots.findIndex((s) => !s.file);
-                  pendingSlotRef.current =
-                    firstEmpty === -1 ? activeSlot : firstEmpty;
-                  fileInputRef.current?.click();
-                }}
+                onClick={capturePhoto}
+                disabled={!cameraStream}
                 className={cn(
-                  "size-[60px] rounded-full border-[3px] border-white",
-                  "flex items-center justify-center bg-white/10 backdrop-blur-sm",
-                  "active:scale-95 transition-all shadow-xl",
+                  "size-[72px] rounded-full border-[4px] border-white flex items-center justify-center bg-white/10 backdrop-blur-sm",
+                  "active:scale-95 transition-all shadow-xl disabled:opacity-40 disabled:scale-100 select-none",
                 )}
               >
-                <div className="size-[48px] rounded-full bg-white flex items-center justify-center">
+                <div className="size-[54px] rounded-full bg-white flex items-center justify-center active:bg-zinc-200 transition-colors">
                   <span className="text-xl">📷</span>
                 </div>
               </button>
 
-              {/* Next / empty */}
-              {hasAllFilled ? (
-                <button
-                  type="button"
-                  onClick={() => setStep("details")}
-                  className="size-10 rounded-full bg-white text-black flex items-center justify-center font-bold text-xs active:scale-95 transition-all"
-                >
-                  →
-                </button>
-              ) : (
-                <div className="size-10" />
-              )}
+              {/* Bottom Right: Flip Camera */}
+              <button
+                type="button"
+                onClick={toggleCamera}
+                disabled={!cameraStream}
+                className="flex flex-col items-center justify-center gap-1 text-zinc-400 hover:text-white active:text-white active:scale-95 transition-all cursor-pointer disabled:opacity-40 select-none"
+              >
+                <div className="size-11 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center hover:bg-zinc-850 transition-colors">
+                  <CameraRotateIcon className="size-5" />
+                </div>
+                <span className="text-[10px] font-semibold tracking-wide">Flip</span>
+              </button>
             </div>
           </div>
         </>

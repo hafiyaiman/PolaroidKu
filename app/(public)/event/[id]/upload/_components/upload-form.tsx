@@ -304,9 +304,9 @@ export function UploadForm({
             {submissions.map((sub) => (
               <div
                 key={sub.id}
-                className="group relative overflow-hidden shadow-md"
+                className="group relative overflow-hidden shadow-md bg-neutral-900"
               >
-                <div className="overflow-hidden bg-neutral-900">
+                <div className="overflow-hidden">
                   <img
                     src={sub.imageUrl}
                     alt={sub.guestName}
@@ -345,7 +345,10 @@ export function UploadForm({
       ) : (
         /* Desktop: centered dialog */
         <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
-          <DialogContent className="sm:max-w-[420px] bg-zinc-950 border-zinc-900 p-0 overflow-hidden flex flex-col max-h-[95dvh] dark text-zinc-100">
+          <DialogContent
+            showCloseButton={false}
+            className="sm:max-w-[420px] bg-zinc-950 border-zinc-900 p-0 overflow-hidden flex flex-col max-h-[95dvh] dark text-zinc-100"
+          >
             <DialogHeader className="sr-only">
               <DialogTitle>Sign the Polaroid Guestbook</DialogTitle>
             </DialogHeader>

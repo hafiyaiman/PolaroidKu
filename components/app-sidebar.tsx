@@ -3,6 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { authClient } from "@/lib/auth/client"
 
 import { NavUser } from "@/components/nav-user"
 import {
@@ -59,15 +60,19 @@ interface SidebarUser {
 }
 
 export function AppSidebar({
-  user,
   ...props
-}: React.ComponentProps<typeof Sidebar> & {
-  user: SidebarUser;
-}) {
+}: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
-  const [isAdmin, setIsAdmin] = React.useState(
-    () => user?.role === "admin" || (user?.email?.includes("admin") ?? false)
-  );
+  const { data: sessionState } = authClient.useSession();
+  const user = sessionState?.user;
+
+  const [isAdmin, setIsAdmin] = React.useState(false);
+
+  React.useEffect(() => {
+    if (user) {
+      setIsAdmin(user.role === "admin" || (user.email?.includes("admin") ?? false));
+    }
+  }, [user]);
 
   const userMenu: SidebarMenuItemType[] = [
     {

@@ -1,72 +1,43 @@
-import { auth } from "@/lib/auth/server";
-import { redirect } from "next/navigation";
-import { getUserEvents } from "@/app/actions/event-actions";
-import { BillingDashboard, type BillingPurchase } from "./_components/billing-dashboard";
-import { db, payments } from "@/lib/db";
-import { eq, desc } from "drizzle-orm";
+"use client";
 
-export default async function Page() {
-  const { data: session } = await auth.getSession();
-  if (!session?.user) {
-    redirect("/login");
+import { useQuery } from "@tanstack/react-query";
+import { getBillingDataAction } from "./_actions/billing-actions";
+import { BillingDashboard } from "./_components/billing-dashboard";
+import { Loader2 } from "lucide-react";
+
+export default function Page() {
+  const { data: res, isLoading, error } = useQuery({
+    queryKey: ["billing-data"],
+    queryFn: async () => {
+      const result = await getBillingDataAction();
+      if ("error" in result) throw new Error(result.error);
+      return result;
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6 bg-background/30">
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="size-8 animate-spin text-pink-500" />
+          <p className="text-xs text-muted-foreground font-medium animate-pulse">Loading billing details...</p>
+        </div>
+      </div>
+    );
   }
 
-  // 1. Fetch user events with their photo counts and guest counts
-  const userEvents = await getUserEvents();
-  const billingEvents = userEvents.map((e) => ({
-    id: e.id,
-    name: e.name,
-    date: e.date,
-    status: e.status,
-    plan: e.plan as "free" | "premium" | "pro",
-    photoLimit: e.photoLimit,
-    photoCount: e.photoCount,
-    retentionDays: e.retentionDays,
-    expiresAt: e.expiresAt ? e.expiresAt.toISOString() : null,
-    guestCount: e.guestCount,
-  }));
-
-  let purchases: BillingPurchase[] = [];
-  try {
-    const realPayments = await db
-      .select({
-        id: payments.id,
-        eventId: payments.eventId,
-        eventName: payments.eventName,
-        plan: payments.plan,
-        amount: payments.amount,
-        createdAt: payments.createdAt,
-        status: payments.status,
-      })
-      .from(payments)
-      .where(eq(payments.userId, session.user.id))
-      .orderBy(desc(payments.createdAt));
-
-    purchases = realPayments.map((p) => {
-      const price = `RM ${(p.amount / 100).toFixed(0)}`;
-      return {
-        id: p.id.startsWith("pur_") ? `INV-${p.id.substring(4, 12).toUpperCase()}` : `INV-${p.id.substring(0, 8).toUpperCase()}`,
-        rawId: p.id,
-        eventId: p.eventId || "",
-        eventName: p.eventName,
-        plan: p.plan === "premium" ? "Premium Upgrade" : "Pro Upgrade",
-        price,
-        date: p.createdAt ? new Date(p.createdAt).toLocaleDateString("en-MY", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-        }) : "N/A",
-        status: p.status === "paid" ? "Paid" : p.status === "pending" ? "Pending" : "Failed",
-      };
-    });
-  } catch (err) {
-    console.error("Failed to fetch billing purchases:", err);
+  if (error || !res || !res.events) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6 bg-background/30 text-red-500 text-xs">
+        Failed to load billing dashboard.
+      </div>
+    );
   }
 
   return (
     <BillingDashboard
-      initialEvents={billingEvents}
-      initialPurchases={purchases}
+      initialEvents={res.events}
+      initialPurchases={res.purchases || []}
     />
   );
 }

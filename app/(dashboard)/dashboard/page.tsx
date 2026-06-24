@@ -1,6 +1,11 @@
+"use client";
+
+import * as React from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { PlusIcon } from "@phosphor-icons/react/dist/ssr";
+import { PlusIcon } from "@phosphor-icons/react";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
 
 import {
   getDashboardStats,
@@ -14,10 +19,65 @@ import { ActivityTimeline } from "./_components/activity-timeline";
 import { EmptyState } from "./_components/empty-state";
 import { SingleEventHero } from "./_components/single-event-hero";
 
-export default async function Page() {
-  const dbStats = await getDashboardStats();
-  const userEvents = await getUserEvents();
-  const recentSubmissions = await getRecentSubmissions();
+export default function Page() {
+  const { data: dashboardData, isLoading, error } = useQuery({
+    queryKey: ["dashboard-data"],
+    queryFn: async () => {
+      const [stats, events, recent] = await Promise.all([
+        getDashboardStats(),
+        getUserEvents(),
+        getRecentSubmissions(),
+      ]);
+
+      let singleEventDetails: any = null;
+      let singleEventSubmissions: any[] = [];
+
+      if (events.length === 1) {
+        const detailsResult = await getEventDetails(events[0].id);
+        if (detailsResult.success) {
+          singleEventDetails = detailsResult.event;
+          singleEventSubmissions = detailsResult.submissions || [];
+        }
+      }
+
+      return {
+        stats,
+        events,
+        recent,
+        singleEventDetails,
+        singleEventSubmissions,
+      };
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6 bg-background/30">
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="size-8 animate-spin text-pink-500" />
+          <p className="text-xs text-muted-foreground font-medium animate-pulse">
+            Loading dashboard data...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !dashboardData) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6 bg-background/30 text-red-500 text-xs">
+        Failed to load dashboard.
+      </div>
+    );
+  }
+
+  const {
+    stats: dbStats,
+    events: userEvents,
+    recent: recentSubmissions,
+    singleEventDetails,
+    singleEventSubmissions,
+  } = dashboardData;
 
   // If user has zero events, show a premium empty welcome state
   if (userEvents.length === 0) {
@@ -26,18 +86,6 @@ export default async function Page() {
         <EmptyState />
       </div>
     );
-  }
-
-  // Get single event details if they only have one event
-  let singleEventSubmissions: any[] = [];
-  let singleEventDetails: any = null;
-
-  if (userEvents.length === 1) {
-    const detailsResult = await getEventDetails(userEvents[0].id);
-    if (detailsResult.success) {
-      singleEventDetails = detailsResult.event;
-      singleEventSubmissions = detailsResult.submissions || [];
-    }
   }
 
   return (

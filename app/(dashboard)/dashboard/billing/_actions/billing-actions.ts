@@ -2,9 +2,10 @@
 
 import { db, events, payments } from "@/lib/db";
 import { auth } from "@/lib/auth/server";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 import { headers } from "next/headers";
+import { getUserEvents } from "@/app/actions/event-actions";
 
 export async function upgradeEventAction(eventId: string, plan: "premium" | "pro") {
   const { data: session } = await auth.getSession();
@@ -109,6 +110,67 @@ export async function upgradeEventAction(eventId: string, plan: "premium" | "pro
     const error = err as Error;
     console.error("Failed to upgrade event:", error);
     return { error: error.message || "Failed to upgrade event." };
+  }
+}
+
+export async function getBillingDataAction() {
+  const { data: session } = await auth.getSession();
+  if (!session?.user) {
+    return { error: "Unauthorized" };
+  }
+
+  try {
+    const userEvents = await getUserEvents();
+
+    const billingEvents = userEvents.map((e) => ({
+      id: e.id,
+      name: e.name,
+      date: e.date,
+      status: e.status,
+      plan: e.plan as "free" | "premium" | "pro",
+      photoLimit: e.photoLimit,
+      photoCount: e.photoCount,
+      retentionDays: e.retentionDays,
+      expiresAt: e.expiresAt ? e.expiresAt.toISOString() : null,
+      guestCount: e.guestCount,
+    }));
+
+    const realPayments = await db
+      .select({
+        id: payments.id,
+        eventId: payments.eventId,
+        eventName: payments.eventName,
+        plan: payments.plan,
+        amount: payments.amount,
+        createdAt: payments.createdAt,
+        status: payments.status,
+      })
+      .from(payments)
+      .where(eq(payments.userId, session.user.id))
+      .orderBy(desc(payments.createdAt));
+
+    const purchases = realPayments.map((p) => {
+      const price = `RM ${(p.amount / 100).toFixed(0)}`;
+      return {
+        id: p.id.startsWith("pur_") ? `INV-${p.id.substring(4, 12).toUpperCase()}` : `INV-${p.id.substring(0, 8).toUpperCase()}`,
+        rawId: p.id,
+        eventId: p.eventId || "",
+        eventName: p.eventName,
+        plan: p.plan === "premium" ? "Premium Upgrade" : "Pro Upgrade",
+        price,
+        date: p.createdAt ? new Date(p.createdAt).toLocaleDateString("en-MY", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        }) : "N/A",
+        status: p.status === "paid" ? "Paid" : p.status === "pending" ? "Pending" : "Failed",
+      };
+    });
+
+    return { success: true, events: billingEvents, purchases };
+  } catch (err) {
+    console.error("Failed to fetch billing data:", err);
+    return { error: "Failed to fetch billing data." };
   }
 }
 

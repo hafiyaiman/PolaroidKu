@@ -2,7 +2,7 @@
 
 import { db, userSettings, events, logs } from "@/lib/db";
 import { auth } from "@/lib/auth/server";
-import { eq } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import { getUserStorageSize } from "@/lib/storage/r2";
 import { logActivity } from "../../events/_actions/event-actions";
 import { revalidatePath } from "next/cache";
@@ -329,8 +329,46 @@ export async function deleteAccountAction() {
 
     return { success: true };
   } catch (err) {
-    const error = err as Error;
-    console.error("Failed to delete account:", error);
-    return { error: error.message || "Failed to delete account." };
+    console.error("Failed to delete account:", err);
+    return { error: "Failed to delete account." };
+  }
+}
+
+export async function getSettingsBillingPurchasesAction() {
+  const { data: session } = await auth.getSession();
+  if (!session?.user) {
+    return { error: "Unauthorized" };
+  }
+
+  try {
+    const upgradedEvents = await db
+      .select()
+      .from(events)
+      .where(and(eq(events.userId, session.user.id), ne(events.plan, "free")));
+
+    const purchases = upgradedEvents.map((event) => {
+      let price = "RM0";
+      if (event.plan === "premium") price = "RM29";
+      if (event.plan === "pro") price = "RM59";
+
+      return {
+        id: `INV-${event.id.substring(0, 8).toUpperCase()}`,
+        eventId: event.id,
+        eventName: event.name,
+        plan: event.plan === "premium" ? "Premium Event" : "Pro Event",
+        price,
+        date: event.createdAt ? new Date(event.createdAt).toLocaleDateString("en-MY", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        }) : "N/A",
+        status: "Paid",
+      };
+    });
+
+    return { success: true, purchases };
+  } catch (err) {
+    console.error("Failed to fetch settings purchases:", err);
+    return { error: "Failed to fetch purchases" };
   }
 }

@@ -44,33 +44,9 @@ const LAYOUTS = [
   },
 ];
 
-// Photo slot dimensions at canvas resolution (export ÷ 3)
-// These match the cutout in editor-shell.tsx: exportX=28.8, exportW=1022.4, exportH=1354.7
-const PHOTO_SLOT = {
-  w: 1022.4 / 3, // 340.8
-  h: 1354.7 / 3, // ~451.6
-  canvasW: 360,
-  canvasH: 640,
-};
 
-function getPhotoSlotX(canvasWidth: number): number {
-  return (canvasWidth - PHOTO_SLOT.w) / 2;
-}
 
 type PhotoAlign = "top" | "center" | "bottom";
-
-function getPhotoSlotY(canvasHeight: number, align: PhotoAlign): number {
-  const padding = 10; // small margin from edges
-  switch (align) {
-    case "top":
-      return padding;
-    case "bottom":
-      return canvasHeight - PHOTO_SLOT.h - padding;
-    case "center":
-    default:
-      return (canvasHeight - PHOTO_SLOT.h) / 2;
-  }
-}
 
 interface BorderItem {
   id: string;
@@ -129,14 +105,16 @@ export function BorderBuilderDialog({
 
   React.useEffect(() => {
     if (open) {
-      setCanvasBgColor("#ffffff");
       // Explicitly set background color on load/init
       setTimeout(() => {
+        setCanvasBgColor("#ffffff");
         canvasRef.current?.setCanvasBgColor("#ffffff");
       }, 50);
 
       if (borderToEdit) {
-        setBorderName(borderToEdit.name || "");
+        setTimeout(() => {
+          setBorderName(borderToEdit.name || "");
+        }, 0);
         // Pre-fill canvas with the existing image as background/object
         setTimeout(() => {
           if (borderToEdit.imageUrl) {
@@ -144,7 +122,9 @@ export function BorderBuilderDialog({
           }
         }, 500);
       } else {
-        setBorderName("");
+        setTimeout(() => {
+          setBorderName("");
+        }, 0);
       }
     }
   }, [open, borderToEdit]);

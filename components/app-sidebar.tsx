@@ -51,13 +51,6 @@ interface SidebarMenuItemType {
   }[];
 }
 
-interface SidebarUser {
-  id: string;
-  email: string;
-  name: string;
-  image?: string | null;
-  role?: string | null;
-}
 
 export function AppSidebar({
   ...props
@@ -66,13 +59,12 @@ export function AppSidebar({
   const { data: sessionState } = authClient.useSession();
   const user = sessionState?.user;
 
-  const [isAdmin, setIsAdmin] = React.useState(false);
-
-  React.useEffect(() => {
-    if (user) {
-      setIsAdmin(user.role === "admin" || (user.email?.includes("admin") ?? false));
-    }
-  }, [user]);
+  const [adminOverride, setAdminOverride] = React.useState<boolean | null>(null);
+  const isAdmin = adminOverride !== null
+    ? adminOverride
+    : user
+      ? (user.role === "admin" || (user.email?.includes("admin") ?? false))
+      : false;
 
   const userMenu: SidebarMenuItemType[] = [
     {
@@ -239,7 +231,7 @@ export function AppSidebar({
             <div className="flex items-center justify-between gap-2">
               <span className="text-muted-foreground font-medium">Role: {isAdmin ? "Admin" : "User"}</span>
               <button
-                onClick={() => setIsAdmin(!isAdmin)}
+                onClick={() => setAdminOverride(!isAdmin)}
                 className="text-[10px] px-2 py-0.5 rounded bg-primary/10 hover:bg-primary/20 text-primary font-semibold border border-primary/20 active:scale-95 transition-all cursor-pointer"
               >
                 Toggle Mode

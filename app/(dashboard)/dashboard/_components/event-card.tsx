@@ -1,16 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   CameraIcon,
   ChatCircleTextIcon,
   UsersIcon,
   HourglassIcon,
-  GearIcon,
-  ArrowRightIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { useRouter } from "next/navigation";
 

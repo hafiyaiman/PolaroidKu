@@ -88,9 +88,12 @@ export function EventDetailsView({
 
   React.useEffect(() => {
     if (queryTab && queryTab !== activeTab) {
-      setActiveTab(queryTab);
+      const timer = setTimeout(() => {
+        setActiveTab(queryTab);
+      }, 0);
+      return () => clearTimeout(timer);
     }
-  }, [queryTab]);
+  }, [queryTab, activeTab]);
 
   const handleTabChange = (val: string) => {
     setActiveTab(val);

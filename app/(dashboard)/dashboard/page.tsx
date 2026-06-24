@@ -29,8 +29,24 @@ export default function Page() {
         getRecentSubmissions(),
       ]);
 
-      let singleEventDetails: any = null;
-      let singleEventSubmissions: any[] = [];
+      let singleEventDetails: {
+        id: string;
+        name: string;
+        slug: string;
+        date: string;
+        status: string;
+        plan: string;
+        photoLimit: number;
+        photoCount: number;
+        expiresAt: Date | string | null;
+      } | null = null;
+      let singleEventSubmissions: {
+        id: string;
+        guestName: string;
+        wish: string;
+        imageUrl: string;
+        time: string;
+      }[] = [];
 
       if (events.length === 1) {
         const detailsResult = await getEventDetails(events[0].id);

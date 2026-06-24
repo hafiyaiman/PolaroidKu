@@ -34,7 +34,9 @@ export function LoginForm({
     const errorParam = searchParams.get("error");
     const errorDescParam = searchParams.get("error_description");
     if (errorParam) {
-      setError(errorDescParam || `Authentication failed: ${errorParam}`);
+      setTimeout(() => {
+        setError(errorDescParam || `Authentication failed: ${errorParam}`);
+      }, 0);
     }
   }, [searchParams]);
 

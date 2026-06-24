@@ -4,14 +4,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import {
-  PlusIcon,
-  TrashIcon,
-  MagicWandIcon,
-  SparkleIcon,
-} from "@phosphor-icons/react";
+import { TrashIcon, SparkleIcon } from "@phosphor-icons/react";
 import { useDeleteBorder } from "../../_hooks/use-event-details";
 import { BorderBuilderDialog } from "./border-builder/border-builder-dialog";
 
@@ -38,10 +31,6 @@ export function CustomBordersTab({
   onBuilderOpenChange,
 }: CustomBordersTabProps) {
   const deleteBorder = useDeleteBorder(eventId);
-
-  const handleAddNewFrame = () => {
-    onBuilderOpenChange(true);
-  };
 
   const handleDelete = async (id: string, name: string | null) => {
     if (

@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CheckCircleIcon, HeartIcon } from "@phosphor-icons/react";
+import { CheckCircleIcon, HeartIcon, DownloadSimpleIcon, ShareNetworkIcon } from "@phosphor-icons/react";
 import { GuestLandingTemplate } from "@/components/guest-landing-template";
 import { EditorShell } from "./editor/editor-shell";
 import { toast } from "sonner";
@@ -81,6 +81,7 @@ export function UploadForm({
     name: string;
     wish: string;
     imageUrl: string;
+    file?: Blob;
   } | null>(null);
 
   React.useEffect(() => {
@@ -89,13 +90,6 @@ export function UploadForm({
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
   }, []);
-
-  const buttonShapeClass =
-    {
-      square: "rounded-none",
-      pill: "rounded-full",
-      rounded: "rounded-lg",
-    }[eventData.buttonShape ?? "rounded"] ?? "rounded-lg";
 
   const customButtonBg = eventData.buttonColor || undefined;
   const customButtonText = eventData.buttonTextColor || undefined;
@@ -167,6 +161,7 @@ export function UploadForm({
         name: editorData.guestName,
         wish: editorData.message,
         imageUrl: previewUrl,
+        file: editorData.file,
       });
       setSubmissions((prev) => [
         {
@@ -191,6 +186,47 @@ export function UploadForm({
     }
   };
 
+  const handleDownload = () => {
+    if (!successData) return;
+    const link = document.createElement("a");
+    link.href = successData.imageUrl;
+    link.download = `polaroid-${Date.now()}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Download started!");
+  };
+
+  const handleShare = async () => {
+    if (!successData || !successData.file) return;
+    const file = new File([successData.file], "polaroid.jpg", { type: "image/jpeg" });
+
+    if (navigator.share) {
+      try {
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: "My Polaroid Memory",
+            text: "Captured at " + eventData.name,
+          });
+          toast.success("Shared successfully!");
+          return;
+        }
+      } catch (err) {
+        console.warn("Web Share API aborted or failed:", err);
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast.success("Event link copied! Download the image to share it on Instagram Story.");
+      handleDownload();
+    } catch {
+      toast.info("Downloading image to share!");
+      handleDownload();
+    }
+  };
+
   // ── Success screen ──────────────────────────────────────────────────────────
   if (submitSuccess && successData) {
     return (
@@ -211,7 +247,7 @@ export function UploadForm({
           Your polaroid and warm wishes have been pinned to the live wall. 💖
         </p>
 
-        <div className="mt-8 bg-white shadow-2xl rounded w-full max-w-[220px] rotate-2">
+        <div className="mt-8 bg-white shadow-2xl rounded w-full max-w-[220px] rotate-2 transition-transform hover:rotate-0 duration-300">
           <div className="w-full overflow-hidden">
             <img
               src={successData.imageUrl}
@@ -221,17 +257,35 @@ export function UploadForm({
           </div>
         </div>
 
-        <div className="w-full max-w-[220px] mt-8">
+        {/* Share & Download actions */}
+        <div className="flex gap-3 w-full max-w-[220px] mt-8">
+          <Button
+            onClick={handleDownload}
+            variant="outline"
+            className="flex-1 flex items-center justify-center gap-1.5 font-semibold text-xs h-10 border-border/80 hover:bg-muted active:scale-95 transition-all cursor-pointer"
+          >
+            <DownloadSimpleIcon className="size-4" />
+            Download
+          </Button>
+          <Button
+            onClick={handleShare}
+            className="flex-1 flex items-center justify-center gap-1.5 font-semibold text-xs h-10 bg-gradient-to-tr from-purple-600 via-pink-600 to-yellow-500 hover:opacity-90 active:scale-95 text-white border-none transition-all cursor-pointer shadow-md"
+          >
+            <ShareNetworkIcon className="size-4" />
+            Share
+          </Button>
+        </div>
+
+        <div className="w-full max-w-[220px] mt-3">
           <Button
             onClick={() => {
               setSubmitSuccess(false);
               setSuccessData(null);
             }}
             className={cn(
-              "w-full font-semibold cursor-pointer active:scale-95 transition-all text-xs h-10",
-              buttonShapeClass,
+              "w-full font-semibold cursor-pointer active:scale-95 transition-all text-xs h-9 text-muted-foreground hover:text-foreground",
             )}
-            style={{ backgroundColor: customButtonBg, color: customButtonText }}
+            variant="ghost"
           >
             Back to Welcome
           </Button>

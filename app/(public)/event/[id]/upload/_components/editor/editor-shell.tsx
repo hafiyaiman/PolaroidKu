@@ -5,17 +5,10 @@ import { toast } from "sonner";
 import { BorderItem, SYSTEM_BORDERS } from "./frame-picker";
 import { SlotCanvas, PhotoSlotState, DEFAULT_SLOT } from "./slot-canvas";
 import { cn } from "@/lib/utils";
-import {
-  XIcon,
-  PaperPlaneRightIcon,
-  SpinnerGapIcon,
-  CameraRotateIcon,
-  ImageIcon,
-} from "@phosphor-icons/react";
+import { ArrowRightIcon, XIcon } from "@phosphor-icons/react";
 import {
   PinkFloralFramePreview,
   BlueFloralFramePreview,
-  getDateCaption,
 } from "@/components/frames/floral-frames";
 import {
   REF_W,
@@ -25,6 +18,8 @@ import {
   clampOffset,
   buildComposite,
 } from "./composite-renderer";
+import { EditorBottomBar } from "./editor-bottom-bar";
+import { EditorDetailsStep } from "./editor-details-step";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface EditorShellProps {
@@ -77,8 +72,12 @@ export function EditorShell({
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const pendingSlotRef = React.useRef(0);
 
-  const [cameraStream, setCameraStream] = React.useState<MediaStream | null>(null);
-  const [facingMode, setFacingMode] = React.useState<"user" | "environment">("user");
+  const [cameraStream, setCameraStream] = React.useState<MediaStream | null>(
+    null,
+  );
+  const [facingMode, setFacingMode] = React.useState<"user" | "environment">(
+    "user",
+  );
   const [cameraError, setCameraError] = React.useState<string | null>(null);
 
   // Start/stop camera stream
@@ -169,28 +168,34 @@ export function EditorShell({
   const layoutType = selectedBorder.layoutType ?? "story_916";
   const slotCount = photoCount;
 
-  // Sync slots on layout count change while preserving existing photos
-  React.useEffect(() => {
+  const syncSlotsForCount = (count: number) => {
     setSlots((prev) => {
-      const next = Array.from({ length: photoCount }, (_, idx) => {
+      return Array.from({ length: count }, (_, idx) => {
         return prev[idx] || { ...DEFAULT_SLOT };
       });
-      return next;
     });
     setActiveSlot(0);
-  }, [photoCount]);
+  };
 
-  // Auto-change photoCount based on the selected border template
-  React.useEffect(() => {
+  const handleSelectedBorderChange = (border: BorderItem) => {
+    setSelectedBorder(border);
+    let targetPhotoCount = photoCount;
     if (
-      selectedBorder.id === "sys_pink_floral" ||
-      selectedBorder.id === "sys_blue_floral"
+      border.id === "sys_pink_floral" ||
+      border.id === "sys_blue_floral"
     ) {
-      setPhotoCount(3);
-    } else if (selectedBorder.id === "sys_polaroid") {
-      setPhotoCount(1);
+      targetPhotoCount = 3;
+    } else if (border.id === "sys_polaroid") {
+      targetPhotoCount = 1;
     }
-  }, [selectedBorder.id]);
+    setPhotoCount(targetPhotoCount);
+    syncSlotsForCount(targetPhotoCount);
+  };
+
+  const handlePhotoCountChange = (count: number) => {
+    setPhotoCount(count);
+    syncSlotsForCount(count);
+  };
 
   const handleSlotClick = (idx: number) => {
     pendingSlotRef.current = idx;
@@ -238,7 +243,9 @@ export function EditorShell({
       toast.error("Camera not active.");
       return;
     }
-    const video = document.querySelector(`[data-slot-idx="${activeSlot}"] video`) as HTMLVideoElement | null;
+    const video = document.querySelector(
+      `[data-slot-idx="${activeSlot}"] video`,
+    ) as HTMLVideoElement | null;
     if (!video) {
       toast.error("Camera feed not ready.");
       return;
@@ -257,35 +264,43 @@ export function EditorShell({
 
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-      const file = new File([blob], `capture-${activeSlot}-${Date.now()}.jpg`, {
-        type: "image/jpeg",
-      });
-      const url = URL.createObjectURL(file);
-      
-      setSlots((prev) => {
-        const next = [...prev];
-        next[activeSlot] = {
-          file,
-          previewUrl: url,
-          zoom: 1,
-          offset: { x: 0, y: 0 },
-          aspectRatio: canvas.width / canvas.height,
-        };
-        return next;
-      });
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) return;
+        const file = new File(
+          [blob],
+          `capture-${activeSlot}-${Date.now()}.jpg`,
+          {
+            type: "image/jpeg",
+          },
+        );
+        const url = URL.createObjectURL(file);
 
-      // Find next empty slot
-      const tempSlots = [...slots];
-      tempSlots[activeSlot] = { file } as any;
-      const nextEmpty = tempSlots.findIndex((s, idx) => idx < photoCount && !s.file);
-      if (nextEmpty !== -1) {
-        setActiveSlot(nextEmpty);
-      }
-      
-      toast.success(`Photo ${activeSlot + 1} captured!`);
-    }, "image/jpeg", 0.95);
+        setSlots((prev) => {
+          const next = [...prev];
+          next[activeSlot] = {
+            file,
+            previewUrl: url,
+            zoom: 1,
+            offset: { x: 0, y: 0 },
+            aspectRatio: canvas.width / canvas.height,
+          };
+          return next;
+        });
+
+        // Find next empty slot
+        const nextEmpty = slots.findIndex(
+          (s, idx) => idx < photoCount && idx !== activeSlot && !s.file,
+        );
+        if (nextEmpty !== -1) {
+          setActiveSlot(nextEmpty);
+        }
+
+        toast.success(`Photo ${activeSlot + 1} captured!`);
+      },
+      "image/jpeg",
+      0.95,
+    );
   };
 
   const toggleCamera = () => {
@@ -325,7 +340,7 @@ export function EditorShell({
   const emptyCount = slots.slice(0, slotCount).filter((s) => !s.file).length;
 
   return (
-    <div className="flex flex-col w-full h-full bg-black text-white overflow-hidden">
+    <div className="flex flex-col w-full h-full bg-black text-white overflow-hidden relative">
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -338,34 +353,34 @@ export function EditorShell({
       {step === "compose" ? (
         <>
           {/* ── TOP BAR ─────────────────────────────────────────────────────── */}
-          <div className="flex items-center justify-between px-4 pt-safe-top pt-3 pb-2 shrink-0">
+          <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 pt-safe-top mt-2 pb-2 z-40 bg-transparent">
             <button
               type="button"
               onClick={onClose}
-              className="size-9 flex items-center justify-center rounded-full bg-zinc-900/80 text-white active:scale-90 transition-all"
+              className="size-9 flex items-center justify-center rounded-full bg-zinc-900/30 text-white active:scale-90 transition-all"
             >
               <XIcon className="size-5" weight="bold" />
             </button>
-            <span className="text-xs font-semibold text-zinc-300 tracking-widest uppercase truncate max-w-[140px]">
+            <span className="px-5 py-2 rounded-full text-xs font-semibold bg-zinc-900/30  text-white tracking-widest uppercase truncate max-w-[140px] drop-shadow-md">
               {selectedBorder.name}
             </span>
             {hasAllFilled ? (
               <button
                 type="button"
                 onClick={() => setStep("details")}
-                className="px-4 h-8 text-xs font-bold bg-white text-black rounded-full active:scale-95 transition-all"
+                className="size-9 flex items-center justify-center rounded-full bg-primary text-white active:scale-90 transition-all"
               >
-                Next →
+                <ArrowRightIcon className="size-5" weight="bold" />
               </button>
             ) : (
-              <div className="w-16" />
+              <div className="size-9" />
             )}
           </div>
 
           {/* ── PHOTO VIEWPORT ──────────────────────────────────────────────── */}
           <div
             ref={viewportRef}
-            className="flex-1 flex items-center justify-center min-h-0 relative"
+            className="flex-1 flex items-center justify-center min-h-0 relative pt-4"
           >
             {/* Layout selector — compact row ABOVE canvas on very small screens */}
             <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex flex-row gap-2 z-30 sm:hidden">
@@ -375,7 +390,7 @@ export function EditorShell({
                   <button
                     key={count}
                     type="button"
-                    onClick={() => setPhotoCount(count)}
+                    onClick={() => handlePhotoCountChange(count)}
                     className={cn(
                       "flex items-center justify-center w-8 h-8 rounded-lg transition-all select-none border cursor-pointer text-[10px] font-bold",
                       isActive
@@ -397,7 +412,7 @@ export function EditorShell({
                   <button
                     key={count}
                     type="button"
-                    onClick={() => setPhotoCount(count)}
+                    onClick={() => handlePhotoCountChange(count)}
                     className={cn(
                       "flex flex-col items-center justify-center w-10 h-10 rounded-xl transition-all select-none border cursor-pointer",
                       isActive
@@ -543,270 +558,32 @@ export function EditorShell({
           </div>
 
           {/* ── BOTTOM — Instagram style ─────────────────────────────────────── */}
-          <div className="shrink-0 pb-safe-bottom">
-            {/* Hint */}
-            <p
-              className={cn(
-                "text-center text-[10px] mb-1.5 transition-all",
-                !hasAllFilled ? "text-zinc-500 animate-pulse" : "text-zinc-600",
-              )}
-            >
-              {!hasAllFilled
-                ? `${emptyCount} slot${emptyCount > 1 ? "s" : ""} remaining — tap 📷 to add`
-                : "Drag to reposition · Pinch or scroll to zoom"}
-            </p>
-
-            {/* Frame picker — circular thumbnails row */}
-            <div className="flex items-center gap-3 overflow-x-auto scrollbar-none px-3 pb-2 snap-x">
-              {allBorders.map((border) => {
-                const isSelected = selectedBorder.id === border.id;
-                const proxied = border.imageUrl
-                  ? `/api/proxy-image?url=${encodeURIComponent(border.imageUrl)}`
-                  : "";
-                return (
-                  <button
-                    key={border.id}
-                    type="button"
-                    onClick={() => setSelectedBorder(border)}
-                    className="flex-shrink-0 snap-start flex flex-col items-center gap-1 cursor-pointer transition-all"
-                  >
-                    <div
-                      className={cn(
-                        "size-[46px] rounded-full overflow-hidden border-[3px] transition-all duration-200",
-                        "bg-zinc-800 flex items-center justify-center",
-                        isSelected
-                          ? "border-white scale-110 shadow-lg shadow-white/20"
-                          : "border-transparent opacity-60 hover:opacity-90 hover:scale-105",
-                      )}
-                    >
-                      {proxied ? (
-                        <img
-                          src={proxied}
-                          alt={border.name ?? ""}
-                          className="object-contain w-4/5 h-4/5"
-                        />
-                      ) : (
-                        <span className="text-base">📸</span>
-                      )}
-                    </div>
-                    <span
-                      className={cn(
-                        "text-[8px] font-semibold w-[46px] text-center truncate",
-                        isSelected ? "text-white" : "text-zinc-500",
-                      )}
-                    >
-                      {border.name}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Bottom action bar */}
-            <div className="flex items-center justify-between px-6 py-4 border-t border-zinc-900 bg-black/80 backdrop-blur-md shrink-0">
-              {/* Bottom Left: Gallery Import */}
-              <button
-                type="button"
-                onClick={handleGalleryImportClick}
-                className="flex flex-col items-center justify-center gap-1 text-zinc-400 hover:text-white active:text-white active:scale-95 transition-all cursor-pointer select-none"
-              >
-                <div className="size-11 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center hover:bg-zinc-850 transition-colors">
-                  <ImageIcon className="size-5" />
-                </div>
-                <span className="text-[10px] font-semibold tracking-wide">Gallery</span>
-              </button>
-
-              {/* Bottom Center: Capture Button */}
-              <button
-                type="button"
-                onClick={capturePhoto}
-                disabled={!cameraStream}
-                className={cn(
-                  "size-[72px] rounded-full border-[4px] border-white flex items-center justify-center bg-white/10 backdrop-blur-sm",
-                  "active:scale-95 transition-all shadow-xl disabled:opacity-40 disabled:scale-100 select-none",
-                )}
-              >
-                <div className="size-[54px] rounded-full bg-white flex items-center justify-center active:bg-zinc-200 transition-colors">
-                  <span className="text-xl">📷</span>
-                </div>
-              </button>
-
-              {/* Bottom Right: Flip Camera */}
-              <button
-                type="button"
-                onClick={toggleCamera}
-                disabled={!cameraStream}
-                className="flex flex-col items-center justify-center gap-1 text-zinc-400 hover:text-white active:text-white active:scale-95 transition-all cursor-pointer disabled:opacity-40 select-none"
-              >
-                <div className="size-11 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center hover:bg-zinc-850 transition-colors">
-                  <CameraRotateIcon className="size-5" />
-                </div>
-                <span className="text-[10px] font-semibold tracking-wide">Flip</span>
-              </button>
-            </div>
-          </div>
+          <EditorBottomBar
+            allBorders={allBorders}
+            selectedBorder={selectedBorder}
+            setSelectedBorder={handleSelectedBorderChange}
+            cameraStream={cameraStream}
+            capturePhoto={capturePhoto}
+            toggleCamera={toggleCamera}
+            handleGalleryImportClick={handleGalleryImportClick}
+            hasAllFilled={hasAllFilled}
+            emptyCount={emptyCount}
+          />
         </>
       ) : (
-        /* ── DETAILS STEP ──────────────────────────────────────────────────── */
-        <div className="flex flex-col h-full">
-          {/* Top bar */}
-          <div className="flex items-center justify-between px-4 pt-3 pb-3 border-b border-zinc-800 shrink-0">
-            <button
-              type="button"
-              onClick={() => setStep("compose")}
-              className="text-xs text-zinc-400 hover:text-white transition-colors cursor-pointer"
-            >
-              ← Back
-            </button>
-            <span className="text-xs font-bold text-zinc-200">
-              Sign &amp; Share
-            </span>
-            <div className="w-12" />
-          </div>
-
-          {/* Preview thumbnail + form */}
-          <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-4">
-            {/* Mini photo preview */}
-            <div className="flex gap-3 items-start">
-              <div
-                className="shrink-0 rounded-md overflow-hidden bg-zinc-900 border border-zinc-700"
-                style={{ width: 52, aspectRatio: "9/16" }}
-              >
-                {slots[0]?.previewUrl && (
-                  <img
-                    src={slots[0].previewUrl}
-                    alt="preview"
-                    className="w-full h-full object-cover"
-                  />
-                )}
-              </div>
-              <div className="flex-1 space-y-1 pt-1">
-                <p className="text-xs font-semibold text-zinc-200">
-                  Almost there!
-                </p>
-                <p className="text-[10px] text-zinc-500 leading-relaxed">
-                  Add your name and an optional wish before sharing to the
-                  memory wall.
-                </p>
-              </div>
-            </div>
-
-            {/* Name */}
-            <div className="space-y-1.5">
-              <label
-                htmlFor="ig-guest-name"
-                className="text-[10px] font-bold uppercase tracking-widest text-zinc-500"
-              >
-                Your Name *
-              </label>
-              <input
-                id="ig-guest-name"
-                type="text"
-                required
-                maxLength={50}
-                value={guestName}
-                onChange={(e) => setGuestName(e.target.value)}
-                disabled={isUploading}
-                placeholder="Enter your name..."
-                autoComplete="given-name"
-                className={cn(
-                  "w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3",
-                  "text-sm text-white placeholder:text-zinc-600",
-                  "focus:outline-none focus:border-zinc-400 transition-colors",
-                )}
-              />
-            </div>
-
-            {/* Message */}
-            <div className="space-y-1.5">
-              <label
-                htmlFor="ig-message"
-                className="text-[10px] font-bold uppercase tracking-widest text-zinc-500"
-              >
-                Leave a Wish
-                <span className="ml-1 normal-case font-normal text-zinc-700">
-                  (optional)
-                </span>
-              </label>
-              <textarea
-                id="ig-message"
-                maxLength={200}
-                rows={3}
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                disabled={isUploading}
-                placeholder="Write something heartfelt..."
-                className={cn(
-                  "w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3",
-                  "text-sm text-white placeholder:text-zinc-600 resize-none",
-                  "focus:outline-none focus:border-zinc-400 transition-colors",
-                )}
-              />
-              <p className="text-right text-[9px] text-zinc-700">
-                {message.length}/200
-              </p>
-            </div>
-
-            {/* Upload progress */}
-            {isUploading && (
-              <div className="space-y-2">
-                <div className="flex justify-between text-[9px] text-zinc-500">
-                  <span className="flex items-center gap-1">
-                    <SpinnerGapIcon className="size-3 animate-spin text-white" />
-                    {uploadProgress < 40
-                      ? "Preparing…"
-                      : uploadProgress < 90
-                        ? "Uploading photo…"
-                        : "Finishing up…"}
-                  </span>
-                  <span>{uploadProgress}%</span>
-                </div>
-                <div className="h-0.5 bg-zinc-800 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-white transition-all duration-300"
-                    style={{ width: `${uploadProgress}%` }}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Submit bar */}
-          <form
-            onSubmit={handleSubmit}
-            className="shrink-0 px-4 pb-safe-bottom pb-5 pt-3 border-t border-zinc-800"
-          >
-            <button
-              type="submit"
-              disabled={isUploading || !guestName.trim()}
-              className={cn(
-                "w-full h-12 rounded-xl font-bold text-sm flex items-center justify-center gap-2",
-                "active:scale-[0.98] transition-all cursor-pointer",
-                "disabled:opacity-40 disabled:cursor-not-allowed",
-              )}
-              style={
-                customButtonBg
-                  ? {
-                      backgroundColor: customButtonBg,
-                      color: customButtonText ?? "#fff",
-                    }
-                  : { backgroundColor: "#fff", color: "#000" }
-              }
-            >
-              {isUploading ? (
-                <>
-                  <SpinnerGapIcon className="size-4 animate-spin" />
-                  Uploading…
-                </>
-              ) : (
-                <>
-                  <PaperPlaneRightIcon weight="fill" className="size-4" />
-                  Share to Memory Wall
-                </>
-              )}
-            </button>
-          </form>
-        </div>
+        <EditorDetailsStep
+          onBack={() => setStep("compose")}
+          guestName={guestName}
+          setGuestName={setGuestName}
+          message={message}
+          setMessage={setMessage}
+          isUploading={isUploading}
+          uploadProgress={uploadProgress}
+          handleSubmit={handleSubmit}
+          previewUrl={slots[0]?.previewUrl}
+          customButtonBg={customButtonBg}
+          customButtonText={customButtonText}
+        />
       )}
     </div>
   );

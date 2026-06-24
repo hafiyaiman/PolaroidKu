@@ -5,16 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   CameraIcon,
   TrashIcon,
-  HeartIcon,
   SparkleIcon,
   ArrowRightIcon,
   SpinnerGapIcon,
-  HandPointingIcon,
   InfoIcon
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
@@ -60,7 +57,6 @@ const DEFAULT_SLOT_STATE: PhotoSlotState = {
 };
 
 export function InstagramEditor({
-  eventId,
   borders = [],
   customButtonBg,
   customButtonText,
@@ -124,14 +120,15 @@ export function InstagramEditor({
   const slotsContainerRef = React.useRef<HTMLDivElement>(null);
   const activeSlotIdxRef = React.useRef<number | null>(null);
 
-  // Clear slot states when border/layout type changes
   React.useEffect(() => {
-    setSlots([
-      { ...DEFAULT_SLOT_STATE },
-      { ...DEFAULT_SLOT_STATE },
-      { ...DEFAULT_SLOT_STATE }
-    ]);
-    setSelectedSlotIdx(0);
+    setTimeout(() => {
+      setSlots([
+        { ...DEFAULT_SLOT_STATE },
+        { ...DEFAULT_SLOT_STATE },
+        { ...DEFAULT_SLOT_STATE }
+      ]);
+      setSelectedSlotIdx(0);
+    }, 0);
   }, [selectedBorder.layoutType]);
 
   const layoutType = selectedBorder.layoutType; // "single_square" | "single_portrait" | "three_strip"
@@ -364,7 +361,7 @@ export function InstagramEditor({
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("Could not create canvas context");
 
-      let width = 1080;
+      const width = 1080;
       let height = 1080;
       if (layoutType === "single_portrait") {
         height = 1350;

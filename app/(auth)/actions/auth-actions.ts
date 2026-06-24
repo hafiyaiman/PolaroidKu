@@ -24,8 +24,17 @@ export async function signUpWithEmail(input: v.InferOutput<typeof SignupSchema>)
   return data;
 }
 
+interface AuthWithOtp {
+  emailOtp: {
+    verifyEmail: (input: { email: string; otp: string }) => Promise<{ data: { user: unknown } | null; error: { message?: string } | null }>;
+    sendVerificationOtp: (input: { email: string; type: string }) => Promise<{ error: { message?: string } | null }>;
+  };
+}
+
+const authWithOtp = auth as unknown as AuthWithOtp;
+
 export async function verifyEmailOtp(input: { email: string; otp: string }) {
-  const { data, error } = await (auth as any).emailOtp.verifyEmail(input);
+  const { data, error } = await authWithOtp.emailOtp.verifyEmail(input);
   if (error) {
     throw new Error(error.message || "Failed to verify email.");
   }
@@ -43,7 +52,7 @@ export async function resendSignupVerification(input: { email: string; callbackU
 }
 
 export async function sendForgotPasswordOtp(input: v.InferOutput<typeof ForgotPasswordSchema>) {
-  const { error } = await (auth as any).emailOtp.sendVerificationOtp({
+  const { error } = await authWithOtp.emailOtp.sendVerificationOtp({
     email: input.email,
     type: "forget-password",
   });

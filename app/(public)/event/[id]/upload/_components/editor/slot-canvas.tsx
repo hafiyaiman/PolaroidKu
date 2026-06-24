@@ -81,7 +81,7 @@ export function SlotCanvas({
     }
   }, [cameraStream, isSelected, hasPhoto]);
 
-  const handleClick = (e: React.MouseEvent) => {
+  const handleClick = () => {
     if (hasPhoto) return;
     if (isSelected) {
       if (cameraError) {

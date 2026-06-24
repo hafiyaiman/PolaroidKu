@@ -95,7 +95,11 @@ export async function buildComposite(
 
   // Pre-load custom fonts so they are active when canvas draws text
   try {
-    const doc = document as any;
+    const doc = document as unknown as {
+      fonts?: {
+        load: (fontSpec: string) => Promise<unknown>;
+      };
+    };
     if (doc.fonts && typeof doc.fonts.load === "function") {
       await Promise.all([
         doc.fonts.load("400 72px 'Great Vibes'"),

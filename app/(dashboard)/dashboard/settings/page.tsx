@@ -64,7 +64,7 @@ export default function Page() {
     id: sessionState.user.id,
     name: sessionState.user.name || "",
     email: sessionState.user.email,
-    role: (sessionState.user as any).role || "user",
+    role: (sessionState.user as { role?: string }).role || "user",
     image: sessionState.user.image || "",
   };
 

@@ -68,7 +68,7 @@ export function UsersTable({ users: initialUsers }: UsersTableProps) {
   const [banTargetEmail, setBanTargetEmail] = React.useState<string | null>(null);
   const [banReasonInput, setBanReasonInput] = React.useState("");
 
-  const handleDeleteUser = async (userId: string, email: string) => {
+  const handleDeleteUser = React.useCallback(async (userId: string, email: string) => {
     if (!confirm(`Are you absolutely sure you want to delete user "${email}"? All of their events and submissions will be permanently removed.`)) {
       return;
     }
@@ -80,9 +80,9 @@ export function UsersTable({ users: initialUsers }: UsersTableProps) {
       const error = err as Error;
       toast.error(error.message || "Failed to delete user");
     }
-  };
+  }, [deleteUser]);
 
-  const handleRoleChange = async (userId: string, role: "user" | "admin") => {
+  const handleRoleChange = React.useCallback(async (userId: string, role: "user" | "admin") => {
     try {
       await updateUserRole.mutateAsync({ userId, role });
       toast.success(`User role updated to ${role.toUpperCase()}`);
@@ -90,14 +90,14 @@ export function UsersTable({ users: initialUsers }: UsersTableProps) {
       const error = err as Error;
       toast.error(error.message || "Failed to update role");
     }
-  };
+  }, [updateUserRole]);
 
-  const handleBanClick = (userId: string, email: string) => {
+  const handleBanClick = React.useCallback((userId: string, email: string) => {
     setBanTargetUserId(userId);
     setBanTargetEmail(email);
     setBanReasonInput("");
     setBanDialogOpen(true);
-  };
+  }, []);
 
   const confirmBanUser = async () => {
     if (!banTargetUserId) return;
@@ -111,7 +111,7 @@ export function UsersTable({ users: initialUsers }: UsersTableProps) {
     }
   };
 
-  const handleUnbanUser = async (userId: string) => {
+  const handleUnbanUser = React.useCallback(async (userId: string) => {
     try {
       await unbanUser.mutateAsync(userId);
       toast.success("User unbanned successfully");
@@ -119,7 +119,7 @@ export function UsersTable({ users: initialUsers }: UsersTableProps) {
       const error = err as Error;
       toast.error(error.message || "Failed to unban user");
     }
-  };
+  }, [unbanUser]);
 
   const columns = React.useMemo<ColumnDef<AdminUser>[]>(
     () => [
@@ -333,9 +333,10 @@ export function UsersTable({ users: initialUsers }: UsersTableProps) {
         },
       },
     ],
-    [deleteUser.isPending]
+    [deleteUser.isPending, handleDeleteUser, handleRoleChange, handleUnbanUser, handleBanClick]
   );
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: users,
     columns,

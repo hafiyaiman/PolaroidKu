@@ -4,7 +4,6 @@ import { db, events, submissions, users, logs } from "@/lib/db";
 import { auth } from "@/lib/auth/server";
 import { eq, count, desc, and, gt, lte, inArray, sql, isNotNull, isNull } from "drizzle-orm";
 import { getPresignedDownloadUrl, getUserStorageSize } from "@/lib/storage/r2";
-import { type DbSubmission } from "@/types/db";
 import { formatTimeAgo, formatBytes } from "@/lib/format";
 
 import {
@@ -108,7 +107,7 @@ export async function getDashboardStats() {
     const storageUsed = formatBytes(actualBytes);
 
     // Determine account role/tier
-    const activeTier = (session.user as any).role === "admin" ? "Super Admin" : "Free Plan";
+    const activeTier = (session.user as { role?: string }).role === "admin" ? "Super Admin" : "Free Plan";
 
     return {
       totalEvents: eventsCount?.value || 0,

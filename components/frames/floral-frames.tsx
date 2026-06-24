@@ -1,5 +1,4 @@
-/* eslint-disable @next/next/no-img-element, @next/next/no-page-custom-font */
-import * as React from "react";
+/* eslint-disable @next/next/no-page-custom-font */
 
 // ── Date parsing & formatting helpers ─────────────────────────────────────────
 export function parseEventDate(

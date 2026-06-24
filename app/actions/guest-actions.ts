@@ -84,7 +84,13 @@ export async function getPublicEventDetails(eventIdOrSlug: string) {
     );
 
     // 2. Fetch public submissions
-    let guestSubmissions: any[] = [];
+    let guestSubmissions: {
+      id: string;
+      guestName: string | null;
+      wish: string | null;
+      imageUrl: string;
+      time: string;
+    }[] = [];
     if (row.showPublicGallery) {
       const dbSubmissions = await db
         .select()

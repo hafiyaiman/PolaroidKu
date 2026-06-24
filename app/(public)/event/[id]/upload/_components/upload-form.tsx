@@ -50,8 +50,8 @@ interface BorderItem {
 
 interface Submission {
   id: string;
-  guestName: string;
-  wish: string;
+  guestName: string | null;
+  wish: string | null;
   imageUrl: string;
   time: string;
 }
@@ -363,13 +363,13 @@ export function UploadForm({
                 <div className="overflow-hidden">
                   <img
                     src={sub.imageUrl}
-                    alt={sub.guestName}
+                    alt={sub.guestName || "Guest"}
                     className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
                   />
                 </div>
                 <div className="px-2 py-2 border-t border-border/30 bg-background/80 backdrop-blur-sm">
                   <p className="text-[10px] font-semibold truncate text-foreground">
-                    {sub.guestName}
+                    {sub.guestName || "Guest"}
                   </p>
                   {sub.wish && (
                     <p className="text-[9px] text-muted-foreground truncate mt-0.5">

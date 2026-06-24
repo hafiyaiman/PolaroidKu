@@ -11,17 +11,8 @@ import {
   getAdminBillingData
 } from "../_actions/admin-actions";
 
-export interface AdminUser {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  banned: boolean;
-  banReason: string | null;
-  eventsCount: number;
-  bucketSize: string;
-  r2ConsoleUrl: string;
-}
+import { AdminUser } from "../_types";
+export type { AdminUser };
 
 export function useAdminUsers(initialUsers?: AdminUser[]) {
   return useQuery<AdminUser[]>({

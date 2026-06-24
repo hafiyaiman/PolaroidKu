@@ -5,6 +5,8 @@ import { auth } from "@/lib/auth/server";
 import { eq, count, desc, sum, gt, and, ne } from "drizzle-orm";
 import { getUserStorageSize } from "@/lib/storage/r2";
 
+import { AdminSessionUser, AuthAdminApi } from "../_types";
+
 function formatBytes(bytes: number) {
   if (bytes === 0) return "0 B";
   const k = 1024;
@@ -15,7 +17,7 @@ function formatBytes(bytes: number) {
 
 export async function getAllUsersForAdmin() {
   const { data: session } = await auth.getSession();
-  const isUserAdmin = (session?.user as any)?.role === "admin" || session?.user?.email?.includes("admin");
+  const isUserAdmin = (session?.user as AdminSessionUser)?.role === "admin" || session?.user?.email?.includes("admin");
   if (!isUserAdmin) {
     return { error: "Unauthorized" };
   }
@@ -62,7 +64,7 @@ export async function getAllUsersForAdmin() {
 
 export async function deleteUserAction(userId: string) {
   const { data: session } = await auth.getSession();
-  const isUserAdmin = (session?.user as any)?.role === "admin" || session?.user?.email?.includes("admin");
+  const isUserAdmin = (session?.user as AdminSessionUser)?.role === "admin" || session?.user?.email?.includes("admin");
   if (!isUserAdmin) {
     return { error: "Unauthorized" };
   }
@@ -84,7 +86,7 @@ export async function deleteUserAction(userId: string) {
 
 export async function banUserAction(userId: string, reason?: string) {
   const { data: session } = await auth.getSession();
-  const isUserAdmin = (session?.user as any)?.role === "admin" || session?.user?.email?.includes("admin");
+  const isUserAdmin = (session?.user as AdminSessionUser)?.role === "admin" || session?.user?.email?.includes("admin");
   if (!isUserAdmin) {
     return { error: "Unauthorized" };
   }
@@ -96,7 +98,7 @@ export async function banUserAction(userId: string, reason?: string) {
   const actualReason = reason || "Banned by Administrator";
 
   try {
-    const { error } = await (auth as any).admin.banUser({
+    const { error } = await (auth as unknown as AuthAdminApi).admin.banUser({
       userId,
       banReason: actualReason,
     });
@@ -115,13 +117,13 @@ export async function banUserAction(userId: string, reason?: string) {
 
 export async function unbanUserAction(userId: string) {
   const { data: session } = await auth.getSession();
-  const isUserAdmin = (session?.user as any)?.role === "admin" || session?.user?.email?.includes("admin");
+  const isUserAdmin = (session?.user as AdminSessionUser)?.role === "admin" || session?.user?.email?.includes("admin");
   if (!isUserAdmin) {
     return { error: "Unauthorized" };
   }
 
   try {
-    const { error } = await (auth as any).admin.unbanUser({ userId });
+    const { error } = await (auth as unknown as AuthAdminApi).admin.unbanUser({ userId });
     if (error) {
       return { error: error.message || "Failed to unban user via auth server" };
     }
@@ -137,14 +139,14 @@ export async function unbanUserAction(userId: string) {
 
 export async function updateUserRoleAction(userId: string, role: "user" | "admin") {
   const { data: session } = await auth.getSession();
-  const isUserAdmin = (session?.user as any)?.role === "admin" || session?.user?.email?.includes("admin");
+  const isUserAdmin = (session?.user as AdminSessionUser)?.role === "admin" || session?.user?.email?.includes("admin");
   if (!isUserAdmin) {
     return { error: "Unauthorized" };
   }
 
   try {
     // Call Neon Auth server-side setRole API
-    const { error } = await (auth as any).admin.setRole({
+    const { error } = await (auth as unknown as AuthAdminApi).admin.setRole({
       userId,
       role,
     });
@@ -163,7 +165,7 @@ export async function updateUserRoleAction(userId: string, role: "user" | "admin
 
 export async function getAdminOverviewData() {
   const { data: session } = await auth.getSession();
-  const isUserAdmin = (session?.user as any)?.role === "admin" || session?.user?.email?.includes("admin");
+  const isUserAdmin = (session?.user as AdminSessionUser)?.role === "admin" || session?.user?.email?.includes("admin");
   if (!isUserAdmin) {
     return { error: "Unauthorized" };
   }
@@ -290,7 +292,7 @@ export async function getAdminOverviewData() {
 
 export async function getAdminBillingData() {
   const { data: session } = await auth.getSession();
-  const isUserAdmin = (session?.user as any)?.role === "admin" || session?.user?.email?.includes("admin");
+  const isUserAdmin = (session?.user as AdminSessionUser)?.role === "admin" || session?.user?.email?.includes("admin");
   if (!isUserAdmin) {
     return { error: "Unauthorized" };
   }
